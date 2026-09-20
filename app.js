@@ -33,7 +33,6 @@ let household = null;
 let remoteRevision = 0;
 let syncTimer = null;
 let syncChannel = null;
-let membershipTimer = null;
 let isApplyingRemote = false;
 const cloudConfig = window.JUZI_YOUZI_SUPABASE;
 const supabaseClient = cloudConfig && window.supabase ? window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey) : null;
@@ -136,35 +135,19 @@ function renderAll() { renderLedger(); renderGoals(); renderReview(); renderPlan
 
 function renderIdentity() {
   const active = state.activeUser;
-  const invitedRole = inviteRoleFromUrl();
-  const needsInviteIdentity = Boolean(inviteFromUrl() && invitedRole && !household && active !== invitedRole);
   const meta = active === 'yang' ? { name: '我是小杨', sub: 'xiaoyang · 小杨粉', initial: '杨', other: '戴', otherClass: 'daidai', activeClass: 'yangyang' } : { name: '我是小戴', sub: 'xiaodai · 小戴蓝', initial: '戴', other: '杨', otherClass: 'yangyang', activeClass: 'daidai' };
   document.querySelector('#active-avatar').textContent = active ? meta.initial : '?'; document.querySelector('#active-avatar').className = 'avatar ' + (active ? meta.activeClass : '');
   document.querySelector('#other-avatar').textContent = active ? meta.other : '?'; document.querySelector('#other-avatar').className = 'avatar ' + (active ? meta.otherClass : '');
   document.querySelector('#active-identity-label').textContent = active ? meta.name : '先选择身份'; document.querySelector('#identity-status').textContent = active ? meta.sub + ' · 点击切换' : '点击选择身份';
   document.querySelector('#top-active-avatar').textContent = active ? meta.initial : '?'; document.querySelector('#top-active-avatar').className = 'avatar ' + (active ? meta.activeClass : ''); document.querySelector('#top-identity-label').textContent = active ? meta.initial + ' · ' + (active === 'dai' ? '小戴' : '小杨') : '选择身份';
-  document.querySelector('#identity-title').textContent = needsInviteIdentity ? `这是给${roleName(invitedRole)}的邀请` : '先告诉我，今天是谁在记账？';
-  document.querySelector('#identity-intro').textContent = needsInviteIdentity ? `请用${roleName(invitedRole)}身份进入，确认后会自动加入你们的共同账本。` : '选择身份后，蓝粉色会跟着你走，也会标记这一笔是谁记录的。云同步接通后，两台手机会看到同一本账。';
-  document.querySelector('#identity-footnote').textContent = needsInviteIdentity ? `这个邀请只留给${roleName(invitedRole)}，另一位的身份已经在账本里。` : '身份只保存在这台设备，用来标记是谁录入了这一笔。';
-  document.querySelectorAll('[data-identity]').forEach(button => {
-    const unavailable = Boolean(needsInviteIdentity && button.dataset.identity !== invitedRole);
-    button.disabled = unavailable;
-    button.classList.toggle('identity-unavailable', unavailable);
-  });
-  document.querySelector('#identity-onboarding').classList.toggle('is-hidden', Boolean(active) && !needsInviteIdentity);
+  document.querySelector('#identity-title').textContent = '先告诉我，今天是谁在记账？';
+  document.querySelector('#identity-intro').textContent = '选择身份后，蓝粉色会跟着你走，也会标记这一笔是谁记录的。身份随时可以切换，所有已连接设备会看到同一本账。';
+  document.querySelector('#identity-footnote').textContent = '身份只保存在这台设备，用来标记是谁录入了这一笔。';
+  document.querySelectorAll('[data-identity]').forEach(button => { button.disabled = false; });
+  document.querySelector('#identity-onboarding').classList.toggle('is-hidden', Boolean(active));
   document.body.dataset.activeUser = active || '';
 }
 function chooseIdentity(identity) {
-  if (household && household.role !== identity) {
-    document.querySelector('#identity-onboarding').classList.add('is-hidden');
-    showToast(`这台设备已经绑定${household.role === 'dai' ? '小戴' : '小杨'}`);
-    return;
-  }
-  const invitedRole = inviteRoleFromUrl();
-  if (!household && inviteFromUrl() && invitedRole && invitedRole !== identity) {
-    showToast(`这个邀请是留给${roleName(invitedRole)}的`);
-    return;
-  }
   state.activeUser = identity; saveState(false); identityPickerCloseable = false; renderIdentity(); updateEntryUI();
   if (!household && (inviteFromUrl() || !localStorage.getItem(CLOUD_PROMPT_KEY))) setTimeout(openSyncDialog, 120);
 }
@@ -321,9 +304,10 @@ function mergeSharedStates(localValue, remoteValue) {
   };
 }
 
-function applySharedState(remoteState, role) {
+function applySharedState(remoteState) {
+  const activeUser = state.activeUser;
   isApplyingRemote = true;
-  state = { ...normalizeState(remoteState), activeUser: role || state.activeUser };
+  state = { ...normalizeState(remoteState), activeUser };
   saveState(false);
   isApplyingRemote = false;
   renderIdentity(); updateEntryUI(); renderAll();
@@ -345,58 +329,45 @@ function inviteFromUrl() {
   return new URLSearchParams(location.search).get('invite')?.trim().toUpperCase() || '';
 }
 
-function inviteRoleFromUrl() {
-  const role = new URLSearchParams(location.search).get('role')?.trim().toLowerCase();
-  return role === 'dai' || role === 'yang' ? role : '';
-}
-
-function roleName(role) { return role === 'dai' ? '小戴' : '小杨'; }
-
 function updateHouseholdSyncStatus() {
   if (!household) return;
-  if (household.memberCount >= 2) {
-    clearInterval(membershipTimer); membershipTimer = null;
-    setSyncStatus('synced', '两人已连接');
-    return;
-  }
-  setSyncStatus('waiting', `等待${roleName(household.role === 'dai' ? 'yang' : 'dai')}加入`);
-  if (!membershipTimer) {
-    membershipTimer = setInterval(() => {
-      if (!document.hidden && navigator.onLine) refreshHouseholdMembership();
-    }, 15000);
-  }
+  setSyncStatus('synced', '云端已连接');
 }
 
-async function refreshHouseholdMembership(updateDialog = false) {
+async function refreshCloudConnection(updateDialog = false) {
   if (!household || !supabaseClient || !navigator.onLine) return;
   const row = await fetchMyHousehold();
   if (!row) return;
-  household.memberCount = Number(row.member_count);
+  const nextRevision = Number(row.ledger_revision);
+  const householdChanged = row.household_id !== household.id;
+  household = { id: row.household_id, memberCount: Number(row.member_count) };
+  if (householdChanged || nextRevision > remoteRevision) {
+    remoteRevision = nextRevision;
+    const merged = mergeSharedStates(sharedStateSnapshot(), row.ledger_state);
+    const needsPush = JSON.stringify(merged) !== JSON.stringify(normalizeState(row.ledger_state));
+    applySharedState(merged);
+    subscribeToHousehold();
+    if (needsPush) scheduleCloudSave();
+  }
   updateHouseholdSyncStatus();
   if (!updateDialog || !document.querySelector('#sync-dialog').open) return;
   const savedInvite = JSON.parse(localStorage.getItem(INVITE_KEY) || 'null');
-  if (household.memberCount === 1 && savedInvite?.code) showInviteStep(savedInvite.code, savedInvite.link);
+  if (savedInvite?.code) showInviteStep(savedInvite.code);
   else showConnectedStep();
 }
 
 function openSyncDialog() {
   const dialog = document.querySelector('#sync-dialog');
-  const invitedRole = inviteRoleFromUrl();
-  if (!household && inviteFromUrl() && invitedRole && state.activeUser !== invitedRole) {
-    renderIdentity();
-    document.querySelector('#identity-onboarding').classList.remove('is-hidden');
-    return;
-  }
   if (household) {
     const savedInvite = JSON.parse(localStorage.getItem(INVITE_KEY) || 'null');
-    if (household.memberCount === 1 && savedInvite?.code) showInviteStep(savedInvite.code, savedInvite.link);
+    if (savedInvite?.code) showInviteStep(savedInvite.code);
     else showConnectedStep();
   } else if (inviteFromUrl()) {
     showSyncStep('sync-join');
     document.querySelector('#invite-code').value = inviteFromUrl();
   } else showSyncStep('sync-start');
   if (!dialog.open) dialog.showModal();
-  if (household) refreshHouseholdMembership(true);
+  if (household) refreshCloudConnection(true);
 }
 
 function closeSyncDialog() { document.querySelector('#sync-dialog').close(); }
@@ -411,9 +382,7 @@ async function ensureAnonymousSession() {
 
 function cloudErrorMessage(error) {
   const text = String(error?.message || error || '');
-  if (text.includes('ROLE_TAKEN')) return '这个身份已经被对方使用，请返回选择另一个身份。';
   if (text.includes('INVALID_OR_EXPIRED_INVITE')) return '邀请码无效或已经过期，请让对方重新打开邀请页。';
-  if (text.includes('HOUSEHOLD_FULL')) return '这个小窝已经有小戴和小杨两个人了。';
   if (text.includes('HOUSEHOLD_DEVICE_LIMIT')) return '这个小窝已经绑定了 6 台设备，请先停止使用旧设备。';
   if (text.includes('anonymous sign-ins')) return '云端还没有开启匿名登录。';
   return '连接没有成功，请检查网络后再试。';
@@ -428,39 +397,31 @@ async function createHousehold() {
     const { data, error } = await supabaseClient.rpc('create_household', { p_role: state.activeUser, p_state: sharedStateSnapshot() });
     if (error) throw error;
     const row = data[0];
-    household = { id: row.household_id, role: state.activeUser, memberCount: Number(row.member_count) };
+    household = { id: row.household_id, memberCount: Number(row.member_count) };
     remoteRevision = Number(row.ledger_revision);
-    const otherRole = state.activeUser === 'dai' ? 'yang' : 'dai';
-    const link = `${location.origin}${location.pathname}?invite=${row.invite_code}&role=${otherRole}`;
+    const link = `${location.origin}${location.pathname}?invite=${row.invite_code}`;
     localStorage.setItem(INVITE_KEY, JSON.stringify({ code: row.invite_code, link }));
-    subscribeToHousehold(); updateHouseholdSyncStatus(); showInviteStep(row.invite_code, link);
+    subscribeToHousehold(); updateHouseholdSyncStatus(); showInviteStep(row.invite_code);
   } catch (error) {
     setSyncStatus('offline', '未连接'); showToast(cloudErrorMessage(error));
   } finally { button.disabled = false; }
 }
 
-function showInviteStep(code, link) {
+function showInviteStep(code) {
   showSyncStep('sync-invite');
-  const role = household?.role || state.activeUser;
-  const otherRole = role === 'dai' ? 'yang' : 'dai';
-  const selfLink = `${location.origin}${location.pathname}?invite=${code}&role=${role}`;
+  const link = `${location.origin}${location.pathname}?invite=${code}`;
   document.querySelector('#created-invite-code').textContent = code;
-  const otherButton = document.querySelector('#copy-invite-link');
-  otherButton.dataset.link = link;
-  otherButton.innerHTML = `<i data-lucide="link"></i> 复制给${roleName(otherRole)}的链接`;
-  const selfButton = document.querySelector('#copy-self-invite-link');
-  selfButton.dataset.link = selfLink;
-  selfButton.innerHTML = `<i data-lucide="smartphone"></i> 在${roleName(role)}的其他设备打开`;
+  const button = document.querySelector('#copy-invite-link');
+  button.dataset.link = link;
+  button.innerHTML = '<i data-lucide="link"></i> 复制云端同步链接';
   if (window.lucide) window.lucide.createIcons();
 }
 
 function showConnectedStep() {
   showSyncStep('sync-connected');
-  const role = household?.role || state.activeUser;
-  const connected = household?.memberCount >= 2;
-  document.querySelector('#sync-connected h2').textContent = connected ? '我们在同一本账里' : `等待${roleName(role === 'dai' ? 'yang' : 'dai')}加入`;
-  document.querySelector('#connected-copy').textContent = connected ? `这台设备是${roleName(role)}，记账后会自动出现在对方手机里。` : '对方还没有完成加入。请把邀请链接发给对方，并让对方按链接选择自己的身份。';
-  document.querySelector('#connected-done').textContent = connected ? '继续记账' : '知道了';
+  document.querySelector('#sync-connected h2').textContent = '云端账本已连接';
+  document.querySelector('#connected-copy').textContent = '这台设备的记录会自动出现在其他已连接设备里。小戴和小杨可以随时切换，只用于标记是谁记下了这一笔。';
+  document.querySelector('#connected-done').textContent = '继续记账';
 }
 
 async function joinHousehold() {
@@ -475,12 +436,12 @@ async function joinHousehold() {
     const { data, error } = await supabaseClient.rpc('join_household', { p_invite_code: code, p_role: state.activeUser });
     if (error) throw error;
     const row = data[0];
-    household = { id: row.household_id, role: row.member_role, memberCount: Number(row.member_count) };
+    household = { id: row.household_id, memberCount: Number(row.member_count) };
     remoteRevision = Number(row.ledger_revision);
     localStorage.removeItem(INVITE_KEY);
     history.replaceState({}, '', location.pathname);
     const merged = mergeSharedStates(sharedStateSnapshot(), row.ledger_state);
-    applySharedState(merged, row.member_role);
+    applySharedState(merged);
     subscribeToHousehold(); updateHouseholdSyncStatus(); showConnectedStep();
     if (JSON.stringify(merged) !== JSON.stringify(normalizeState(row.ledger_state))) scheduleCloudSave();
   } catch (error) {
@@ -505,7 +466,7 @@ async function syncToCloud(retry = true) {
     const latest = await fetchMyHousehold();
     if (latest) {
       const merged = mergeSharedStates(snapshot, latest.ledger_state);
-      applySharedState(merged, household.role);
+      applySharedState(merged);
       return syncToCloud(false);
     }
   }
@@ -523,8 +484,7 @@ function subscribeToHousehold() {
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ledger_documents', filter: `household_id=eq.${household.id}` }, payload => {
       const revision = Number(payload.new.revision);
       if (revision <= remoteRevision) return;
-      remoteRevision = revision; applySharedState(payload.new.state, household.role); updateHouseholdSyncStatus();
-      if (household.memberCount < 2) refreshHouseholdMembership();
+      remoteRevision = revision; applySharedState(payload.new.state); updateHouseholdSyncStatus();
     })
     .subscribe();
 }
@@ -535,21 +495,21 @@ async function initCloud() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
       setSyncStatus('local', '本机记录');
-      if (state.activeUser && (!inviteRoleFromUrl() || state.activeUser === inviteRoleFromUrl()) && inviteFromUrl()) setTimeout(openSyncDialog, 150);
+      if (state.activeUser && inviteFromUrl()) setTimeout(openSyncDialog, 150);
       return;
     }
     const row = await fetchMyHousehold();
     if (!row) {
       setSyncStatus('local', '本机记录');
       renderIdentity();
-      if (state.activeUser && (!inviteRoleFromUrl() || state.activeUser === inviteRoleFromUrl()) && inviteFromUrl()) setTimeout(openSyncDialog, 150);
+      if (state.activeUser && inviteFromUrl()) setTimeout(openSyncDialog, 150);
       return;
     }
-    household = { id: row.household_id, role: row.member_role, memberCount: Number(row.member_count) };
+    household = { id: row.household_id, memberCount: Number(row.member_count) };
     remoteRevision = Number(row.ledger_revision);
     const merged = mergeSharedStates(sharedStateSnapshot(), row.ledger_state);
     const needsPush = JSON.stringify(merged) !== JSON.stringify(normalizeState(row.ledger_state));
-    applySharedState(merged, row.member_role);
+    applySharedState(merged);
     subscribeToHousehold(); updateHouseholdSyncStatus();
     if (needsPush) scheduleCloudSave();
   } catch { setSyncStatus('offline', '离线保存'); }
@@ -568,15 +528,11 @@ function setupSync() {
   document.querySelector('#connected-done').addEventListener('click', closeSyncDialog);
   document.querySelector('#copy-invite-link').addEventListener('click', async event => {
     await navigator.clipboard.writeText(event.currentTarget.dataset.link);
-    showToast('给对象的专属链接已复制');
+    showToast('云端同步链接已复制');
   });
-  document.querySelector('#copy-self-invite-link').addEventListener('click', async event => {
-    await navigator.clipboard.writeText(event.currentTarget.dataset.link);
-    showToast('你的其他设备链接已复制');
-  });
-  window.addEventListener('online', () => household ? (syncToCloud(), refreshHouseholdMembership()) : initCloud());
+  window.addEventListener('online', () => household ? (syncToCloud(), refreshCloudConnection()) : initCloud());
   window.addEventListener('offline', () => setSyncStatus('offline', '离线保存'));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && household) refreshHouseholdMembership(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && household) refreshCloudConnection(); });
 }
 
 setupCategories(); setupNavigation(); setupDialogs(); setupIdentity(); setupSync(); setupDateAndMode(); updateEntryUI(); renderIdentity(); renderAll(); initCloud(); if (window.lucide) window.lucide.createIcons();

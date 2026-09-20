@@ -23,7 +23,7 @@
         <div class="brand onboarding-brand"><div class="brand-mark" aria-hidden="true"><span>橘</span><span>柚</span></div><div><strong>橘子柚子</strong><small>ふたりの家計簿</small></div></div>
         <span class="eyebrow">WELCOME HOME</span>
         <h1 id="identity-title">先告诉我，今天是谁在记账？</h1>
-        <p id="identity-intro">选择身份后，蓝粉色会跟着你走，也会标记这一笔是谁记录的。云同步接通后，两台手机会看到同一本账。</p>
+        <p id="identity-intro">选择身份后，蓝粉色会跟着你走，也会标记这一笔是谁记录的。身份随时可以切换，所有已连接设备会看到同一本账。</p>
         <div class="identity-options">
           <button class="identity-option identity-dai" type="button" data-identity="dai"><span class="identity-avatar">戴</span><strong>我是小戴</strong><small>xiaodai · 小戴蓝</small><i data-lucide="arrow-right"></i></button>
           <button class="identity-option identity-yang" type="button" data-identity="yang"><span class="identity-avatar">杨</span><strong>我是小杨</strong><small>xiaoyang · 小杨粉</small><i data-lucide="arrow-right"></i></button>
@@ -192,8 +192,8 @@
         <span class="eyebrow">OUR PRIVATE HOME</span>
         <section class="sync-step" id="sync-start">
           <h2>把账本连成一个小窝</h2>
-          <p>这里不是银行卡，也不会发生转账。连接后，小戴和小杨可以在两台手机上更新同一本生活账。</p>
-          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>只有加入这个小窝的两台设备能读取账目。</span></div>
+          <p>这里不是银行卡，也不会发生转账。连接后，你们可以在手机和电脑上更新同一本生活账。</p>
+          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>只有拿到私密邀请并加入的设备能读取账目。</span></div>
           <button class="sync-primary" id="create-household" type="button"><i data-lucide="home"></i> 建立我们的账本</button>
           <button class="sync-secondary" id="show-join" type="button"><i data-lucide="ticket-check"></i> 我有对象发来的邀请码</button>
           <button class="sync-later" id="sync-later" type="button">先只在这台手机记录</button>
@@ -201,7 +201,7 @@
         <section class="sync-step" id="sync-join" hidden>
           <button class="sync-back" id="join-back" type="button"><i data-lucide="arrow-left"></i> 返回</button>
           <h2>回到我们的小窝</h2>
-          <p>输入对方发来的 10 位邀请码。身份会和这台设备绑定，不能与对方重复。</p>
+          <p>输入另一台设备发来的 10 位邀请码。加入后可以随时切换小戴或小杨，身份只用于标记记录。</p>
           <label class="invite-input">邀请码<input id="invite-code" type="text" maxlength="10" inputmode="text" autocomplete="off" placeholder="例如 A1B2C3D4E5" /></label>
           <p class="sync-error" id="join-error" role="alert"></p>
           <button class="sync-primary" id="join-household" type="button"><i data-lucide="heart-handshake"></i> 加入共同账本</button>
@@ -209,16 +209,15 @@
         <section class="sync-step" id="sync-invite" hidden>
           <span class="tiny-celebration">✿ 连接已经准备好</span>
           <h2>把设备接进同一个小窝</h2>
-          <p>邀请码 7 天内有效。小戴和小杨都可以在自己的手机、电脑上加入，同一身份的记录会汇总在一起。</p>
+          <p>邀请码 7 天内有效。把同一条链接发到你们要使用的手机或电脑，所有设备都会进入同一本账。</p>
           <div class="invite-code-card"><small>OUR HOME CODE</small><strong id="created-invite-code">----------</strong></div>
-          <button class="sync-primary" id="copy-invite-link" type="button"><i data-lucide="link"></i> 复制给对象的链接</button>
-          <button class="sync-secondary" id="copy-self-invite-link" type="button"><i data-lucide="smartphone"></i> 在我的其他设备打开</button>
+          <button class="sync-primary" id="copy-invite-link" type="button"><i data-lucide="link"></i> 复制云端同步链接</button>
           <button class="sync-later" id="invite-done" type="button">我已经记下了</button>
         </section>
         <section class="sync-step" id="sync-connected" hidden>
           <div class="connected-mark"><i data-lucide="cloud-check"></i></div>
-          <h2>我们在同一本账里</h2>
-          <p id="connected-copy">这台设备的记录会自动同步。</p>
+          <h2>云端账本已连接</h2>
+          <p id="connected-copy">这台设备的记录会自动同步，身份可以随时切换。</p>
           <div class="member-pair"><span class="member-dai">戴</span><i data-lucide="heart"></i><span class="member-yang">杨</span></div>
           <button class="sync-primary" id="connected-done" type="button">继续记账</button>
         </section>
