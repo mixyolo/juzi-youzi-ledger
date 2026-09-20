@@ -23,6 +23,8 @@ let undoTimer = null;
 let ledgerFilter = 'all';
 let identityPickerCloseable = false;
 let pendingDeleteId = null;
+let editingGoalId = null;
+let pendingDeleteGoalId = null;
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function loadState() {
@@ -58,9 +60,10 @@ function renderGoals() {
     const dai = state.savings.filter(item => Number(item.goalId) === Number(goal.id) && item.owner === 'dai').reduce((sum, item) => sum + item.amount, 0);
     const yang = state.savings.filter(item => Number(item.goalId) === Number(goal.id) && item.owner === 'yang').reduce((sum, item) => sum + item.amount, 0);
     const current = dai + yang; const percent = Math.min(100, Math.round(current / goal.target * 100));
-    return `<article class="goal-card"><div class="goal-card-head"><div><span class="goal-card-icon">${goal.icon}</span><h3>${escapeHtml(goal.name)}</h3><small>目标期限 ${goal.deadline}</small></div><b>${percent}%</b></div><div class="team-progress"><span class="dai-part" style="width:${Math.min(100, dai / goal.target * 100)}%"></span><span class="yang-part" style="width:${Math.min(100, yang / goal.target * 100)}%"></span></div><footer><span>${money.format(current)} / ${money.format(goal.target)}</span><button class="fund-goal" type="button" data-goal-id="${goal.id}">+ 记存钱</button></footer></article>`;
+    return `<article class="goal-card"><div class="goal-card-actions"><button type="button" data-edit-goal="${goal.id}" aria-label="修改 ${escapeHtml(goal.name)}" title="修改愿望"><i data-lucide="pencil"></i></button><button type="button" data-delete-goal="${goal.id}" aria-label="删除 ${escapeHtml(goal.name)}" title="删除愿望"><i data-lucide="trash-2"></i></button></div><div class="goal-card-head"><div><span class="goal-card-icon">${goal.icon}</span><h3>${escapeHtml(goal.name)}</h3><small>目标期限 ${goal.deadline}</small></div><b>${percent}%</b></div><div class="team-progress"><span class="dai-part" style="width:${Math.min(100, dai / goal.target * 100)}%"></span><span class="yang-part" style="width:${Math.min(100, yang / goal.target * 100)}%"></span></div><footer><span>${money.format(current)} / ${money.format(goal.target)}</span><button class="fund-goal" type="button" data-goal-id="${goal.id}">+ 记存钱</button></footer></article>`;
   }).join('');
   document.querySelector('#goal-cards').innerHTML = cards || '<div class="empty-goals"><span>✨</span><strong>还没有愿望目标</strong><p>先写下一个想一起实现的小愿望。</p><button class="outline-button" type="button" data-action="new-goal"><i data-lucide="plus"></i> 创建第一个目标</button></div>';
+  if (window.lucide) window.lucide.createIcons();
   const featured = state.goals[0];
   if (!featured) {
     document.querySelector('#featured-name').textContent = '还没有置顶目标';
@@ -182,14 +185,65 @@ function confirmExpenseDelete() {
   showToast('这笔记录已删除');
 }
 
+function openGoalDialog(goal = null) {
+  editingGoalId = goal ? Number(goal.id) : null;
+  document.querySelector('#goal-dialog-eyebrow').textContent = goal ? 'EDIT OUR WISH' : 'A NEW WISH';
+  document.querySelector('#goal-dialog-title').textContent = goal ? '修改这个愿望' : '许一个新愿望';
+  document.querySelector('#goal-submit').firstChild.textContent = goal ? ' 保存修改 ' : ' 收进愿望池 ';
+  document.querySelector('#goal-name').value = goal?.name || '';
+  document.querySelector('#goal-target').value = goal?.target || '';
+  document.querySelector('#goal-dialog').showModal();
+  setTimeout(() => document.querySelector('#goal-name').focus(), 50);
+}
+
+function requestGoalDelete(id) {
+  const goal = state.goals.find(item => Number(item.id) === id);
+  if (!goal) return;
+  pendingDeleteGoalId = id;
+  const saved = goalSaved(id);
+  document.querySelector('#goal-delete-summary').textContent = saved > 0
+    ? `「${goal.name}」会被删除，已记录的 ${money.format(saved)} 存钱金额仍会保留。`
+    : `「${goal.name}」会从愿望池删除。`;
+  document.querySelector('#goal-delete-dialog').showModal();
+}
+
+function confirmGoalDelete() {
+  if (pendingDeleteGoalId === null) return;
+  state.goals = state.goals.filter(goal => Number(goal.id) !== pendingDeleteGoalId);
+  state.savings = state.savings.map(item => Number(item.goalId) === pendingDeleteGoalId ? { ...item, goalId: null } : item);
+  pendingDeleteGoalId = null;
+  saveState(); renderAll(); updateEntryUI();
+  document.querySelector('#goal-delete-dialog').close();
+  showToast('愿望已删除，存钱记录仍保留');
+}
+
 function setupDialogs() {
   document.querySelector('#add-expense').addEventListener('click', () => openEntry()); document.querySelector('#mobile-add').addEventListener('click', () => openEntry()); document.querySelector('.close-dialog').addEventListener('click', () => document.querySelector('#expense-dialog').close()); document.querySelector('#expense-form').addEventListener('submit', addEntry); document.querySelector('#undo-button').addEventListener('click', undoEntry); document.querySelectorAll('[data-entry-type]').forEach(button => button.addEventListener('click', () => setEntryType(button.dataset.entryType)));
   document.querySelector('[data-action="edit-budget"]').addEventListener('click', openBudgetDialog); document.querySelector('#budget-primary').addEventListener('click', openBudgetDialog); document.querySelector('.close-budget').addEventListener('click', () => document.querySelector('#budget-dialog').close()); document.querySelector('#budget-form').addEventListener('submit', event => { event.preventDefault(); const value = Number(document.querySelector('#budget-amount').value); if (!Number.isFinite(value) || value <= 0) return; state.budget = value; saveState(); renderReview(); document.querySelector('#budget-dialog').close(); showToast(`月度预算已设置为 ${money.format(state.budget)}`); });
   document.querySelector('#ledger-list').addEventListener('click', event => { const button = event.target.closest('[data-delete-expense]'); if (button) requestExpenseDelete(Number(button.dataset.deleteExpense)); }); document.querySelector('#delete-cancel').addEventListener('click', () => { pendingDeleteId = null; document.querySelector('#delete-dialog').close(); }); document.querySelector('#delete-confirm').addEventListener('click', confirmExpenseDelete);
   document.querySelector('.filter-button').addEventListener('click', event => { const filters = ['all', 'dai', 'yang', 'shared']; ledgerFilter = filters[(filters.indexOf(ledgerFilter) + 1) % filters.length]; const labels = { all: '全部', dai: '小戴', yang: '小杨', shared: '共同' }; event.currentTarget.lastChild.textContent = ` ${labels[ledgerFilter]}`; renderLedger(); });
   document.querySelectorAll('[data-deposit]').forEach(button => button.addEventListener('click', () => openEntry('saving', button.dataset.deposit)));
-  document.querySelector('.goals-section').addEventListener('click', event => { const newGoal = event.target.closest('[data-action="new-goal"]'); if (newGoal) document.querySelector('#goal-dialog').showModal(); const button = event.target.closest('[data-goal-id]'); if (button) openEntry('saving', null, Number(button.dataset.goalId)); });
-  document.querySelector('.close-goal').addEventListener('click', () => document.querySelector('#goal-dialog').close()); document.querySelector('#goal-form').addEventListener('submit', event => { event.preventDefault(); const name = document.querySelector('#goal-name').value.trim(); const target = Number(document.querySelector('#goal-target').value); state.goals.push({ id: Date.now(), name, target, icon: '✨', deadline: '慢慢实现' }); saveState(); renderAll(); document.querySelector('#goal-dialog').close(); event.currentTarget.reset(); showToast('新愿望已经收进愿望池'); });
+  document.querySelector('.goals-section').addEventListener('click', event => {
+    if (event.target.closest('[data-action="new-goal"]')) return openGoalDialog();
+    const editButton = event.target.closest('[data-edit-goal]');
+    if (editButton) return openGoalDialog(state.goals.find(goal => Number(goal.id) === Number(editButton.dataset.editGoal)));
+    const deleteButton = event.target.closest('[data-delete-goal]');
+    if (deleteButton) return requestGoalDelete(Number(deleteButton.dataset.deleteGoal));
+    const fundButton = event.target.closest('[data-goal-id]');
+    if (fundButton) openEntry('saving', null, Number(fundButton.dataset.goalId));
+  });
+  document.querySelector('.close-goal').addEventListener('click', () => document.querySelector('#goal-dialog').close());
+  document.querySelector('#goal-delete-cancel').addEventListener('click', () => { pendingDeleteGoalId = null; document.querySelector('#goal-delete-dialog').close(); });
+  document.querySelector('#goal-delete-confirm').addEventListener('click', confirmGoalDelete);
+  document.querySelector('#goal-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const name = document.querySelector('#goal-name').value.trim(); const target = Number(document.querySelector('#goal-target').value);
+    if (editingGoalId === null) state.goals.push({ id: Date.now(), name, target, icon: '✨', deadline: '慢慢实现' });
+    else state.goals = state.goals.map(goal => Number(goal.id) === editingGoalId ? { ...goal, name, target } : goal);
+    const wasEditing = editingGoalId !== null; editingGoalId = null;
+    saveState(); renderAll(); updateEntryUI(); document.querySelector('#goal-dialog').close(); event.currentTarget.reset();
+    showToast(wasEditing ? '愿望已经修改' : '新愿望已经收进愿望池');
+  });
 }
 
 function setupDateAndMode() { const now = new Date(); const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']; const startDate = new Date('2019-09-21T00:00:00+08:00'); const togetherDays = Math.max(1, Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - startDate) / 86400000) + 1); document.querySelector('#together-days').textContent = togetherDays.toLocaleString('zh-CN'); document.querySelector('#date-label').textContent = `${now.getMonth() + 1}月${now.getDate()}日 · ${weekdays[now.getDay()]}`; const isWeekend = now.getDay() === 0 || now.getDay() === 6 || (now.getDay() === 5 && now.getHours() >= 18); if (isWeekend) { document.querySelector('#mode-pill').innerHTML = '<i data-lucide="party-popper"></i> 周末快乐模式'; document.querySelector('#budget-note').textContent = '周末模式会在你记下几笔后，显示真实的周末预算。'; } }
