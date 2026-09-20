@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fffdf9" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="橘子柚子" />
+    <meta name="description" content="只属于小戴和小杨的共同生活账本" />
+    <title>橘子柚子记账簿</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="identity-onboarding" id="identity-onboarding" role="dialog" aria-modal="true" aria-labelledby="identity-title">
+      <div class="identity-sheet">
+        <div class="brand onboarding-brand"><div class="brand-mark" aria-hidden="true"><span>橘</span><span>柚</span></div><div><strong>橘子柚子</strong><small>ふたりの家計簿</small></div></div>
+        <span class="eyebrow">WELCOME HOME</span>
+        <h1 id="identity-title">先告诉我，今天是谁在记账？</h1>
+        <p>选择你的身份后，蓝粉色会跟着你走。另一位家人的记录也会同步出现在共同账本里。</p>
+        <div class="identity-options">
+          <button class="identity-option identity-dai" type="button" data-identity="dai"><span class="identity-avatar">戴</span><strong>我是小戴</strong><small>xiaodai · 小戴蓝</small><i data-lucide="arrow-right"></i></button>
+          <button class="identity-option identity-yang" type="button" data-identity="yang"><span class="identity-avatar">杨</span><strong>我是小杨</strong><small>xiaoyang · 小杨粉</small><i data-lucide="arrow-right"></i></button>
+        </div>
+        <small class="identity-footnote">身份只保存在这台设备，用来标记是谁录入了这一笔。</small>
+      </div>
+    </div>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"><span>橘</span><span>柚</span></div>
+          <div><strong>橘子柚子</strong><small>ふたりの家計簿</small></div>
+        </div>
+
+        <nav class="main-nav" aria-label="主导航">
+          <button class="nav-item active" data-view="home"><i data-lucide="house"></i><span>家园</span></button>
+          <button class="nav-item" data-view="vault"><i data-lucide="target"></i><span>存钱计划</span></button>
+          <button class="nav-item" data-view="review"><i data-lucide="chart-no-axes-combined"></i><span>生活复盘</span></button>
+        </nav>
+
+        <div class="sidebar-pets">
+          <div class="pet-sticker-set small-pets" aria-label="棕色泰迪和橘白猫"><svg class="pet-svg dog-svg" viewBox="0 0 120 100" aria-hidden="true"><path d="M33 42c-11-5-18-16-13-27 2-4 7-4 11 2l8 13M87 42c11-5 18-16 13-27-2-4-7-4-11 2l-8 13" fill="#9b603d" stroke="#573f36" stroke-width="4" stroke-linecap="round"/><path d="M28 48c0-19 14-31 32-31s32 12 32 31v18c0 16-14 27-32 27S28 82 28 66z" fill="#c98757" stroke="#573f36" stroke-width="4"/><circle cx="48" cy="53" r="4" fill="#3e3332"/><circle cx="72" cy="53" r="4" fill="#3e3332"/><path d="M54 67q6-5 12 0-6 9-12 0" fill="#573f36"/><path d="M57 75q3 9 6 0" fill="#ef8e98" stroke="#573f36" stroke-width="3" stroke-linecap="round"/></svg><svg class="pet-svg cat-svg" viewBox="0 0 120 100" aria-hidden="true"><path d="M31 39 25 10l25 18M89 39l6-29-25 18" fill="#fffaf1" stroke="#573f36" stroke-width="4" stroke-linejoin="round"/><path d="M30 45c0-17 13-28 30-28s30 11 30 28v22c0 17-13 27-30 27S30 84 30 67z" fill="#fffaf1" stroke="#573f36" stroke-width="4"/><path d="M34 34q12-22 27-12l-6 17-20 7M79 32q8-8 11 4l-4 15-16-8" fill="#ed9b3b"/><circle cx="49" cy="54" r="4" fill="#3e3332"/><circle cx="71" cy="54" r="4" fill="#3e3332"/><path d="M56 67q4-4 8 0-4 6-8 0" fill="#e88e9a"/></svg></div>
+          <p>一起认真生活的<br /><b>第 <span id="together-days">2556</span> 天</b></p>
+        </div>
+
+        <button class="profile-chip identity-preview" type="button" id="identity-switch">
+          <span class="avatar" id="active-avatar">?</span><span class="avatar" id="other-avatar">?</span>
+          <span><b id="active-identity-label">先选择身份</b><small id="identity-status">点击切换身份</small></span>
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div><span class="eyebrow" id="date-label"></span><h1 id="page-title">今天也一起，好好生活</h1></div>
+          <div class="top-actions">
+            <button class="top-identity" type="button" id="top-identity-switch" aria-label="切换身份"><span class="avatar" id="top-active-avatar">?</span><span id="top-identity-label">选择身份</span></button>
+            <button class="icon-button" type="button" aria-label="搜索账单" title="搜索账单"><i data-lucide="search"></i></button>
+            <button class="icon-button" type="button" aria-label="通知" title="通知"><i data-lucide="bell"></i><span class="dot"></span></button>
+          </div>
+        </header>
+
+        <section class="view active" id="home-view" aria-labelledby="page-title">
+          <div class="home-grid">
+            <section class="budget-panel paper-panel">
+              <div class="panel-heading">
+                <div><span class="status-pill" id="mode-pill"><i data-lucide="sun"></i> 工作日平稳模式</span><h2 id="budget-title">先设一个月度预算</h2></div>
+                <button class="text-button" type="button" data-action="edit-budget">调整预算 <i data-lucide="chevron-right"></i></button>
+              </div>
+              <div class="budget-main">
+                <div class="budget-ring" id="budget-ring"><div><small>本月已花</small><strong id="budget-percent">0%</strong></div></div>
+                <div class="budget-copy">
+                  <p><span id="month-spent">¥0</span> <small>/ <span id="budget-total">未设置</span></small></p>
+                  <div class="metric-row"><span>剩余预算</span><b id="month-left">先设预算</b></div>
+                  <div class="metric-row"><span>日均可用</span><b id="daily-left">—</b></div>
+                  <p class="soft-note" id="budget-note">设置预算后，这里会根据你的真实记录计算。</p>
+                  <button class="budget-primary" id="budget-primary" type="button"><i data-lucide="pencil-line"></i><span id="budget-primary-label">设置月度预算</span></button>
+                </div>
+              </div>
+            </section>
+
+            <section class="goal-feature paper-panel">
+              <div class="tape"></div>
+              <div class="goal-topline"><span class="eyebrow">OUR BIG PLAN</span><span id="featured-percent">0%</span></div>
+              <h2 id="featured-name">还没有置顶目标</h2>
+              <p><strong id="featured-current">¥0</strong><span> / <span id="featured-target">未设置</span></span></p>
+              <div class="team-progress" aria-label="买车目标合力进度">
+                <span class="dai-part" style="width:16%"></span><span class="yang-part" style="width:12%"></span>
+              </div>
+              <div class="goal-legend"><span><i class="blue-dot"></i>小戴 <span id="featured-dai">¥0</span></span><span><i class="pink-dot"></i>小杨 <span id="featured-yang">¥0</span></span><span id="featured-remaining">先记录存钱</span></div>
+              <button class="goal-link" type="button" data-go-to="vault">查看存钱计划 <i data-lucide="arrow-up-right"></i></button>
+            </section>
+
+            <section class="ledger-panel paper-panel">
+              <div class="panel-heading"><div><span class="eyebrow">RECENT DAYS</span><h2>家里的新鲜事</h2></div><button class="filter-button" type="button"><i data-lucide="sliders-horizontal"></i> 筛选</button></div>
+              <div class="ledger-list" id="ledger-list"></div>
+            </section>
+
+            <aside class="family-note paper-panel">
+              <span class="eyebrow">TODAY'S NOTE</span>
+              <div class="pet-stage">
+                <div class="pet-sticker-set" aria-label="棕色泰迪和橘白猫"><svg class="pet-svg dog-svg" viewBox="0 0 120 100" aria-hidden="true"><path d="M33 42c-11-5-18-16-13-27 2-4 7-4 11 2l8 13M87 42c11-5 18-16 13-27-2-4-7-4-11 2l-8 13" fill="#9b603d" stroke="#573f36" stroke-width="4" stroke-linecap="round"/><path d="M28 48c0-19 14-31 32-31s32 12 32 31v18c0 16-14 27-32 27S28 82 28 66z" fill="#c98757" stroke="#573f36" stroke-width="4"/><circle cx="48" cy="53" r="4" fill="#3e3332"/><circle cx="72" cy="53" r="4" fill="#3e3332"/><path d="M54 67q6-5 12 0-6 9-12 0" fill="#573f36"/><path d="M57 75q3 9 6 0" fill="#ef8e98" stroke="#573f36" stroke-width="3" stroke-linecap="round"/></svg><div class="yarn"></div><svg class="pet-svg cat-svg" viewBox="0 0 120 100" aria-hidden="true"><path d="M31 39 25 10l25 18M89 39l6-29-25 18" fill="#fffaf1" stroke="#573f36" stroke-width="4" stroke-linejoin="round"/><path d="M30 45c0-17 13-28 30-28s30 11 30 28v22c0 17-13 27-30 27S30 84 30 67z" fill="#fffaf1" stroke="#573f36" stroke-width="4"/><path d="M34 34q12-22 27-12l-6 17-20 7M79 32q8-8 11 4l-4 15-16-8" fill="#ed9b3b"/><circle cx="49" cy="54" r="4" fill="#3e3332"/><circle cx="71" cy="54" r="4" fill="#3e3332"/><path d="M56 67q4-4 8 0-4 6-8 0" fill="#e88e9a"/></svg></div>
+              </div>
+              <h3>准备好记录第一天</h3>
+              <p>今天的晚饭、咖啡或一束花，都可以从这里开始留下来。</p>
+              <div class="mini-stats"><span><b id="today-count">0 笔</b>今日记录</span><span><b id="today-total">¥0</b>今日花费</span></div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="vault-view">
+          <div class="vault-hero">
+            <div><span class="eyebrow">OUR SAVING PLANS</span><h2>把小愿望，慢慢存成真的</h2><p>这里记录计划，不发生真实转账，也不代表银行卡余额。</p></div>
+            <div class="total-vault"><small>已记录的存钱安排</small><strong id="vault-total">¥0</strong><span>还没有存钱记录</span></div>
+          </div>
+          <div class="vault-grid">
+            <section class="vault-card dai-vault">
+              <div class="vault-owner"><span class="avatar daidai">戴</span><div><small>XIAODAI'S SAVING LOG</small><h3>小戴的存钱记录</h3></div></div>
+              <p class="vault-balance"><small>已记录的计划金额</small><strong id="dai-balance">¥0</strong></p>
+              <div class="vault-meta"><span>关联目标 <b id="dai-plan-count">0 个</b></span><span>最近记录 <b>暂无</b></span></div>
+              <button type="button" class="deposit-button blue" data-deposit="dai"><i data-lucide="plus"></i> 记录小戴存钱</button>
+            </section>
+            <section class="vault-card yang-vault">
+              <div class="vault-owner"><span class="avatar yangyang">杨</span><div><small>XIAOYANG'S SAVING LOG</small><h3>小杨的存钱记录</h3></div></div>
+              <p class="vault-balance"><small>已记录的计划金额</small><strong id="yang-balance">¥0</strong></p>
+              <div class="vault-meta"><span>关联目标 <b id="yang-plan-count">0 个</b></span><span>最近记录 <b>暂无</b></span></div>
+              <button type="button" class="deposit-button pink" data-deposit="yang"><i data-lucide="plus"></i> 记录小杨存钱</button>
+            </section>
+          </div>
+          <p class="planning-note"><i data-lucide="info"></i><span><b>先说清楚：</b>“存钱记录”只是把现实里的存钱动作记下来。钱仍然在你们自己的银行卡、现金或理财账户里，本 App 不保管资金，也不会真的划款；银行卡之间的转移也不算消费。</span></p>
+          <section class="goals-section">
+            <div class="section-title"><div><span class="eyebrow">WISH LIST</span><h2>一起实现的愿望</h2></div><button class="outline-button" type="button" data-action="new-goal"><i data-lucide="plus"></i> 新愿望</button></div>
+            <div class="goal-cards" id="goal-cards"></div>
+          </section>
+        </section>
+
+        <section class="view" id="review-view">
+          <div class="review-heading"><div><span class="eyebrow">SEPTEMBER REVIEW</span><h2>九月生活复盘</h2><p>我们把钱花在了喜欢的生活上。</p></div><button class="month-picker" type="button"><i data-lucide="calendar-days"></i> 2026 年 9 月 <i data-lucide="chevron-down"></i></button></div>
+          <div class="review-grid">
+            <section class="review-card contribution-card">
+              <div class="panel-heading"><div><small>本月共同支出</small><h2 id="review-total">¥0</h2></div><span class="trend-good" id="review-trend"><i data-lucide="sparkles"></i> 等待记录</span></div>
+              <div class="contribution-body"><div class="contribution-ring" id="contribution-ring"><div><span>一起承担</span><b id="contribution-percent">0%</b></div></div><div class="contribution-legend"><p><i class="blue-dot"></i><span>xiaodai <small id="dai-share">0%</small></span><b id="dai-spent">¥0</b></p><p><i class="pink-dot"></i><span>xiaoyang <small id="yang-share">0%</small></span><b id="yang-spent">¥0</b></p></div></div>
+            </section>
+            <section class="review-card category-card"><div class="panel-heading"><div><small>钱都去哪里了</small><h2>支出 Top 5</h2></div><i data-lucide="bar-chart-3"></i></div><div class="category-bars" id="category-bars"></div></section>
+            <section class="review-card pet-report"><div><span class="eyebrow">橘子柚子专项</span><h2>毛孩子月报</h2><p>记下第一笔宠物支出后，这里会出现专属月报。</p></div><div class="pet-number"><strong id="pet-total">¥0</strong><span id="pet-share">等待记录</span></div><div class="paw-row" aria-hidden="true">🐾 🐾 🐾</div></section>
+            <section class="review-card rhythm-card"><div class="panel-heading"><div><small>生活节奏</small><h2>工作日 vs 周末</h2></div><span>日均</span></div><div class="rhythm-chart"><div class="weekday-bar"><span id="weekday-bar" style="height:0%"></span><b id="weekday-total">¥0</b><small>工作日</small></div><div class="weekend-bar"><span id="weekend-bar" style="height:0%"></span><b id="weekend-total">¥0</b><small>周末</small></div></div><p id="rhythm-note">有了几笔记录后，这里会帮你看见生活节奏。</p></section>
+          </div>
+        </section>
+      </main>
+
+      <button class="fab" id="add-expense" type="button" aria-label="快速记一笔"><i data-lucide="plus"></i><span>记一笔</span></button>
+      <nav class="mobile-nav" aria-label="移动端导航">
+        <button class="mobile-nav-item active" data-view="home"><i data-lucide="house"></i><span>家园</span></button>
+        <button class="mobile-nav-item" data-view="vault"><i data-lucide="target"></i><span>计划</span></button>
+        <button class="mobile-add" id="mobile-add" type="button" aria-label="快速记一笔"><i data-lucide="plus"></i></button>
+        <button class="mobile-nav-item" data-view="review"><i data-lucide="chart-no-axes-combined"></i><span>复盘</span></button>
+        <button class="mobile-nav-item" type="button"><i data-lucide="user-round"></i><span>我们</span></button>
+      </nav>
+    </div>
+
+    <dialog class="expense-dialog" id="expense-dialog">
+      <form method="dialog" id="expense-form">
+        <div class="dialog-head"><div><span class="step-count">QUICK ENTRY</span><h2 id="entry-title">记下一笔支出</h2></div><button class="icon-button close-dialog" type="button" aria-label="关闭"><i data-lucide="x"></i></button></div>
+        <div class="entry-type" role="tablist" aria-label="记录类型"><button type="button" class="active" data-entry-type="expense">记支出</button><button type="button" data-entry-type="income">记收入</button><button type="button" data-entry-type="saving">记存钱</button></div>
+        <label class="amount-input"><span>¥</span><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" autocomplete="off" required /></label>
+        <div class="form-section"><div class="form-label"><span id="party-label">谁付款</span><small>01 / 02</small></div><div class="payer-toggle" id="party-picker"><label><input type="radio" name="party" value="dai" checked /><span><i class="blue-dot"></i> xiaodai</span></label><label><input type="radio" name="party" value="yang" /><span><i class="pink-dot"></i> xiaoyang</span></label><label><input type="radio" name="party" value="shared" /><span><i class="orange-dot"></i> 共同账户</span></label></div></div>
+        <div class="form-section"><div class="form-label"><span id="category-label">花在什么地方</span><small>02 / 02</small></div><div class="category-grid" id="category-picker"></div></div>
+        <div class="form-section saving-target-wrap" hidden><div class="form-label"><span>这笔存钱想去哪里</span><small>可选</small></div><select id="saving-target" class="saving-target"></select></div>
+        <label class="note-input"><i data-lucide="pencil-line"></i><input id="expense-note" name="note" type="text" maxlength="30" placeholder="留下一点生活碎片（选填）" /></label>
+        <p class="entry-helper" id="entry-helper">只记录已经发生的消费，不计算谁欠谁。</p>
+        <button class="save-expense" id="entry-submit" type="submit">记下这一笔 <i data-lucide="check"></i></button>
+      </form>
+    </dialog>
+
+    <dialog class="mini-dialog" id="goal-dialog"><form method="dialog" id="goal-form"><div class="dialog-head"><div><span class="eyebrow">A NEW WISH</span><h2>许一个新愿望</h2></div><button class="icon-button close-goal" type="button" aria-label="关闭"><i data-lucide="x"></i></button></div><label class="field-label">愿望名称<input id="goal-name" type="text" maxlength="20" placeholder="比如：一起去看海" required /></label><label class="field-label">目标金额<input id="goal-target" type="number" min="100" step="100" placeholder="10000" required /></label><button class="save-expense" type="submit">收进愿望池 <i data-lucide="sparkles"></i></button></form></dialog>
+    <dialog class="mini-dialog" id="goal-fund-dialog"><form method="dialog" id="goal-fund-form"><div class="dialog-head"><div><span class="eyebrow">MOVE FORWARD</span><h2 id="goal-fund-title">给愿望存一点</h2></div><button class="icon-button close-goal-fund" type="button" aria-label="关闭"><i data-lucide="x"></i></button></div><label class="amount-input compact"><span>¥</span><input id="goal-fund-amount" type="number" min="1" step="1" placeholder="0" required /></label><div class="payer-toggle goal-payer"><label><input type="radio" name="goal-payer" value="dai" checked /><span><i class="blue-dot"></i> xiaodai</span></label><label><input type="radio" name="goal-payer" value="yang" /><span><i class="pink-dot"></i> xiaoyang</span></label></div><button class="save-expense" type="submit">存进这个愿望 <i data-lucide="sparkles"></i></button></form></dialog>
+    <dialog class="mini-dialog" id="budget-dialog"><form method="dialog" id="budget-form"><div class="dialog-head"><div><span class="eyebrow">MONTHLY PLAN</span><h2 id="budget-dialog-title">设置月度预算</h2></div><button class="icon-button close-budget" type="button" aria-label="关闭"><i data-lucide="x"></i></button></div><p class="dialog-disclaimer">填写这个月准备花在共同生活上的总额度，之后随时可以修改。</p><label class="amount-input compact"><span>¥</span><input id="budget-amount" type="number" min="1" step="100" inputmode="decimal" placeholder="例如 8000" autocomplete="off" required /></label><button class="save-expense" type="submit">保存预算 <i data-lucide="check"></i></button></form></dialog>
+    <dialog class="mini-dialog delete-dialog" id="delete-dialog"><div class="delete-dialog-body"><div class="delete-mark"><i data-lucide="trash-2"></i></div><h2>删除这笔记录？</h2><p id="delete-summary">删除后，预算和复盘数据会立即更新。</p><div class="delete-actions"><button class="delete-cancel" id="delete-cancel" type="button">先留着</button><button class="delete-confirm" id="delete-confirm" type="button">确认删除</button></div></div></dialog>
+
+    <div class="toast" id="toast" role="status"><span><i data-lucide="circle-check"></i><b id="toast-message">记账成功</b></span><button id="undo-button" type="button">撤销 <small id="undo-count">4</small></button></div>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script src="app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+      }
+    </script>
+  </body>
+</html>

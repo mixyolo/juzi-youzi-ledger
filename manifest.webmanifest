@@ -1,0 +1,20 @@
+{
+  "name": "橘子柚子记账簿",
+  "short_name": "橘子柚子",
+  "description": "只属于小戴和小杨的共同生活账本",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fffdf9",
+  "theme_color": "#f2a65a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
