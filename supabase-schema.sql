@@ -13,9 +13,12 @@ create table if not exists public.household_members (
   role text not null check (role in ('dai', 'yang')),
   joined_at timestamptz not null default now(),
   primary key (household_id, user_id),
-  unique (user_id),
-  unique (household_id, role)
+  unique (user_id)
 );
+
+-- A person may use the same role on more than one trusted device.
+alter table public.household_members
+  drop constraint if exists household_members_household_id_role_key;
 
 create table if not exists public.ledger_documents (
   household_id uuid primary key references public.households(id) on delete cascade,
@@ -56,7 +59,7 @@ security definer
 set search_path = public
 as $$
   select m.household_id, m.role, d.state, d.revision,
-    (select count(*) from public.household_members c where c.household_id = m.household_id)
+    (select count(distinct c.role) from public.household_members c where c.household_id = m.household_id)
   from public.household_members m
   join public.ledger_documents d on d.household_id = m.household_id
   where m.user_id = auth.uid()
@@ -118,15 +121,14 @@ begin
   for update;
 
   if v_household_id is null then raise exception 'INVALID_OR_EXPIRED_INVITE'; end if;
-  if (select count(*) from public.household_members where household_id = v_household_id) >= 2 then raise exception 'HOUSEHOLD_FULL'; end if;
-  if exists (select 1 from public.household_members where household_id = v_household_id and role = p_role) then raise exception 'ROLE_TAKEN'; end if;
+  if (select count(*) from public.household_members where household_id = v_household_id) >= 6 then raise exception 'HOUSEHOLD_DEVICE_LIMIT'; end if;
 
   insert into public.household_members (household_id, user_id, role)
   values (v_household_id, auth.uid(), p_role);
-  update public.households set invite_expires_at = now() where id = v_household_id;
 
   return query
-    select d.household_id, p_role, d.state, d.revision, 2::bigint
+    select d.household_id, p_role, d.state, d.revision,
+      (select count(distinct m.role) from public.household_members m where m.household_id = v_household_id)
     from public.ledger_documents d where d.household_id = v_household_id;
 end;
 $$;

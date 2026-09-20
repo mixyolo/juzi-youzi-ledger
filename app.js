@@ -414,6 +414,7 @@ function cloudErrorMessage(error) {
   if (text.includes('ROLE_TAKEN')) return '这个身份已经被对方使用，请返回选择另一个身份。';
   if (text.includes('INVALID_OR_EXPIRED_INVITE')) return '邀请码无效或已经过期，请让对方重新打开邀请页。';
   if (text.includes('HOUSEHOLD_FULL')) return '这个小窝已经有小戴和小杨两个人了。';
+  if (text.includes('HOUSEHOLD_DEVICE_LIMIT')) return '这个小窝已经绑定了 6 台设备，请先停止使用旧设备。';
   if (text.includes('anonymous sign-ins')) return '云端还没有开启匿名登录。';
   return '连接没有成功，请检查网络后再试。';
 }
@@ -440,8 +441,17 @@ async function createHousehold() {
 
 function showInviteStep(code, link) {
   showSyncStep('sync-invite');
+  const role = household?.role || state.activeUser;
+  const otherRole = role === 'dai' ? 'yang' : 'dai';
+  const selfLink = `${location.origin}${location.pathname}?invite=${code}&role=${role}`;
   document.querySelector('#created-invite-code').textContent = code;
-  document.querySelector('#copy-invite-link').dataset.link = link;
+  const otherButton = document.querySelector('#copy-invite-link');
+  otherButton.dataset.link = link;
+  otherButton.innerHTML = `<i data-lucide="link"></i> 复制给${roleName(otherRole)}的链接`;
+  const selfButton = document.querySelector('#copy-self-invite-link');
+  selfButton.dataset.link = selfLink;
+  selfButton.innerHTML = `<i data-lucide="smartphone"></i> 在${roleName(role)}的其他设备打开`;
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function showConnectedStep() {
@@ -559,6 +569,10 @@ function setupSync() {
   document.querySelector('#copy-invite-link').addEventListener('click', async event => {
     await navigator.clipboard.writeText(event.currentTarget.dataset.link);
     showToast('给对象的专属链接已复制');
+  });
+  document.querySelector('#copy-self-invite-link').addEventListener('click', async event => {
+    await navigator.clipboard.writeText(event.currentTarget.dataset.link);
+    showToast('你的其他设备链接已复制');
   });
   window.addEventListener('online', () => household ? (syncToCloud(), refreshHouseholdMembership()) : initCloud());
   window.addEventListener('offline', () => setSyncStatus('offline', '离线保存'));
