@@ -1,14 +1,18 @@
 const money = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 0 });
 const STORAGE_KEY = 'juzi-youzi-ledger-v1';
+const INVITE_KEY = 'juzi-youzi-invite-v1';
+const CLOUD_PROMPT_KEY = 'juzi-youzi-cloud-prompt-v1';
 
 const initialState = {
-  version: 2,
+  version: 3,
   activeUser: null,
   budget: 0,
   expenses: [],
   incomes: [],
   savings: [],
-  goals: []
+  goals: [],
+  deletedExpenseIds: [],
+  updatedAt: null
 };
 
 const expenseCategories = [['☕', '咖啡'], ['🍱', '工作餐'], ['🍲', '双人晚餐'], ['🛒', '买菜'], ['🐱', '橘子柚子'], ['🚇', '公共交通'], ['🚕', '打车'], ['🎬', '电影演出'], ['🏠', '居家日用'], ['＋', '自定义']];
@@ -25,21 +29,36 @@ let identityPickerCloseable = false;
 let pendingDeleteId = null;
 let editingGoalId = null;
 let pendingDeleteGoalId = null;
+let household = null;
+let remoteRevision = 0;
+let syncTimer = null;
+let syncChannel = null;
+let isApplyingRemote = false;
+const cloudConfig = window.JUZI_YOUZI_SUPABASE;
+const supabaseClient = cloudConfig && window.supabase ? window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey) : null;
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
+function normalizeState(saved) {
+  if (!saved || typeof saved !== 'object') return clone(initialState);
+  const next = { ...clone(initialState), ...saved, version: initialState.version };
+  next.expenses = (saved.expenses || []).map(item => ({ ...item, payer: item.payer === 'vault' ? 'shared' : item.payer }));
+  next.incomes = saved.incomes || [];
+  next.savings = saved.savings || [];
+  next.goals = (saved.goals || []).map(goal => ({ id: goal.id, name: goal.name, icon: goal.icon || '✨', target: goal.target, deadline: goal.deadline || '慢慢实现' }));
+  next.deletedExpenseIds = saved.deletedExpenseIds || [];
+  return next;
+}
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved || saved.version !== initialState.version) return clone(initialState);
-    const next = { ...clone(initialState), ...saved };
-    next.expenses = (saved.expenses || []).map(item => ({ ...item, payer: item.payer === 'vault' ? 'shared' : item.payer }));
-    next.incomes = saved.incomes || clone(initialState.incomes);
-    next.savings = saved.savings || clone(initialState.savings);
-    next.goals = (saved.goals || clone(initialState.goals)).map(goal => ({ id: goal.id, name: goal.name, icon: goal.icon || '✨', target: goal.target, deadline: goal.deadline || '慢慢实现' }));
-    return next;
+    return normalizeState(saved);
   } catch { return clone(initialState); }
 }
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function saveState(sharedChanged = true) {
+  if (sharedChanged && !isApplyingRemote) state.updatedAt = new Date().toISOString();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (sharedChanged && household && !isApplyingRemote) scheduleCloudSave();
+}
 function partyMeta(party) { return party === 'dai' ? { name: 'xiaodai', color: 'var(--blue)', soft: 'var(--blue-soft)' } : party === 'yang' ? { name: 'xiaoyang', color: 'var(--pink)', soft: 'var(--pink-soft)' } : { name: '共同账户', color: 'var(--orange)', soft: 'var(--orange-soft)' }; }
 function goalSaved(goalId) { return state.savings.filter(item => Number(item.goalId) === Number(goalId)).reduce((sum, item) => sum + item.amount, 0); }
 function ownerSaved(owner) { return state.savings.filter(item => item.owner === owner).reduce((sum, item) => sum + item.amount, 0); }
@@ -124,7 +143,15 @@ function renderIdentity() {
   document.querySelector('#identity-onboarding').classList.toggle('is-hidden', Boolean(active));
   document.body.dataset.activeUser = active || '';
 }
-function chooseIdentity(identity) { state.activeUser = identity; saveState(); identityPickerCloseable = false; renderIdentity(); updateEntryUI(); }
+function chooseIdentity(identity) {
+  if (household && household.role !== identity) {
+    document.querySelector('#identity-onboarding').classList.add('is-hidden');
+    showToast(`这台设备已经绑定${household.role === 'dai' ? '小戴' : '小杨'}`);
+    return;
+  }
+  state.activeUser = identity; saveState(false); identityPickerCloseable = false; renderIdentity(); updateEntryUI();
+  if (!household && !localStorage.getItem(CLOUD_PROMPT_KEY)) setTimeout(openSyncDialog, 120);
+}
 function setupIdentity() {
   document.querySelectorAll('[data-identity]').forEach(button => button.addEventListener('click', () => chooseIdentity(button.dataset.identity)));
   document.querySelector('#identity-switch').addEventListener('click', () => { identityPickerCloseable = true; document.querySelector('#identity-onboarding').classList.remove('is-hidden'); });
@@ -156,7 +183,7 @@ function addEntry(event) {
   if (entryType === 'saving') { const goalId = Number(document.querySelector('#saving-target').value) || null; state.savings.unshift({ ...base, owner: party, goalId, note: note || selectedCategory[1] }); lastEntry = { type: 'saving', id: base.id }; }
   saveState(); renderAll(); document.querySelector('#expense-dialog').close(); event.currentTarget.reset(); showToast(entryType === 'expense' ? '支出已记下' : entryType === 'income' ? '收入已记下，不影响消费统计' : '存钱计划已记下', true);
 }
-function undoEntry() { if (!lastEntry) return; const collection = lastEntry.type === 'expense' ? 'expenses' : lastEntry.type === 'income' ? 'incomes' : 'savings'; state[collection] = state[collection].filter(item => item.id !== lastEntry.id); saveState(); renderAll(); lastEntry = null; clearInterval(undoTimer); document.querySelector('#toast').classList.remove('show'); }
+function undoEntry() { if (!lastEntry) return; const collection = lastEntry.type === 'expense' ? 'expenses' : lastEntry.type === 'income' ? 'incomes' : 'savings'; state[collection] = state[collection].filter(item => item.id !== lastEntry.id); if (lastEntry.type === 'expense') state.deletedExpenseIds.push(lastEntry.id); saveState(); renderAll(); lastEntry = null; clearInterval(undoTimer); document.querySelector('#toast').classList.remove('show'); }
 function showToast(message, canUndo = false) { clearInterval(undoTimer); const toast = document.querySelector('#toast'); document.querySelector('#toast-message').textContent = message; document.querySelector('#undo-button').hidden = !canUndo; toast.classList.add('show'); let count = 4; document.querySelector('#undo-count').textContent = count; undoTimer = setInterval(() => { count -= 1; document.querySelector('#undo-count').textContent = count; if (count <= 0) { clearInterval(undoTimer); toast.classList.remove('show'); lastEntry = null; } }, 1000); }
 
 function openBudgetDialog() {
@@ -179,6 +206,7 @@ function confirmExpenseDelete() {
   const expense = state.expenses.find(item => item.id === pendingDeleteId);
   if (!expense) return document.querySelector('#delete-dialog').close();
   state.expenses = state.expenses.filter(item => item.id !== pendingDeleteId);
+  state.deletedExpenseIds.push(pendingDeleteId);
   pendingDeleteId = null;
   saveState(); renderAll();
   document.querySelector('#delete-dialog').close();
@@ -249,4 +277,225 @@ function setupDialogs() {
 function setupDateAndMode() { const now = new Date(); const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']; const startDate = new Date('2019-09-21T00:00:00+08:00'); const togetherDays = Math.max(1, Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - startDate) / 86400000) + 1); document.querySelector('#together-days').textContent = togetherDays.toLocaleString('zh-CN'); document.querySelector('#date-label').textContent = `${now.getMonth() + 1}月${now.getDate()}日 · ${weekdays[now.getDay()]}`; const isWeekend = now.getDay() === 0 || now.getDay() === 6 || (now.getDay() === 5 && now.getHours() >= 18); if (isWeekend) { document.querySelector('#mode-pill').innerHTML = '<i data-lucide="party-popper"></i> 周末快乐模式'; document.querySelector('#budget-note').textContent = '周末模式会在你记下几笔后，显示真实的周末预算。'; } }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 
-setupCategories(); setupNavigation(); setupDialogs(); setupIdentity(); setupDateAndMode(); updateEntryUI(); renderIdentity(); renderAll(); if (window.lucide) window.lucide.createIcons();
+function sharedStateSnapshot() {
+  return clone({ version: state.version, budget: state.budget, expenses: state.expenses, incomes: state.incomes, savings: state.savings, goals: state.goals, deletedExpenseIds: state.deletedExpenseIds, updatedAt: state.updatedAt });
+}
+
+function mergeById(localItems = [], remoteItems = []) {
+  const items = new Map();
+  [...remoteItems, ...localItems].forEach(item => items.set(String(item.id), item));
+  return [...items.values()].sort((a, b) => String(b.createdAt || b.id).localeCompare(String(a.createdAt || a.id)));
+}
+
+function mergeSharedStates(localValue, remoteValue) {
+  const local = normalizeState(localValue);
+  const remote = normalizeState(remoteValue);
+  const deletedExpenseIds = [...new Set([...remote.deletedExpenseIds, ...local.deletedExpenseIds])];
+  const deleted = new Set(deletedExpenseIds.map(String));
+  const localIsNewer = String(local.updatedAt || '') > String(remote.updatedAt || '');
+  return {
+    ...clone(initialState),
+    budget: localIsNewer ? local.budget : remote.budget,
+    expenses: mergeById(local.expenses, remote.expenses).filter(item => !deleted.has(String(item.id))),
+    incomes: mergeById(local.incomes, remote.incomes),
+    savings: mergeById(local.savings, remote.savings),
+    goals: mergeById(local.goals, remote.goals),
+    deletedExpenseIds,
+    updatedAt: localIsNewer ? local.updatedAt : remote.updatedAt
+  };
+}
+
+function applySharedState(remoteState, role) {
+  isApplyingRemote = true;
+  state = { ...normalizeState(remoteState), activeUser: role || state.activeUser };
+  saveState(false);
+  isApplyingRemote = false;
+  renderIdentity(); updateEntryUI(); renderAll();
+}
+
+function setSyncStatus(kind, label) {
+  const chip = document.querySelector('#sync-status');
+  chip.dataset.status = kind;
+  chip.querySelector('span').textContent = label;
+  chip.innerHTML = `<i data-lucide="${kind === 'synced' ? 'cloud-check' : kind === 'syncing' ? 'cloud-upload' : kind === 'offline' ? 'cloud-off' : 'cloud'}"></i><span>${escapeHtml(label)}</span>`;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function showSyncStep(stepId) {
+  document.querySelectorAll('.sync-step').forEach(step => { step.hidden = step.id !== stepId; });
+}
+
+function inviteFromUrl() {
+  return new URLSearchParams(location.search).get('invite')?.trim().toUpperCase() || '';
+}
+
+function openSyncDialog() {
+  const dialog = document.querySelector('#sync-dialog');
+  if (household) {
+    const savedInvite = JSON.parse(localStorage.getItem(INVITE_KEY) || 'null');
+    if (household.memberCount === 1 && savedInvite?.code) showInviteStep(savedInvite.code, savedInvite.link);
+    else showConnectedStep();
+  } else if (inviteFromUrl()) {
+    showSyncStep('sync-join');
+    document.querySelector('#invite-code').value = inviteFromUrl();
+  } else showSyncStep('sync-start');
+  if (!dialog.open) dialog.showModal();
+}
+
+function closeSyncDialog() { document.querySelector('#sync-dialog').close(); }
+
+async function ensureAnonymousSession() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) return session;
+  const { data, error } = await supabaseClient.auth.signInAnonymously();
+  if (error) throw error;
+  return data.session;
+}
+
+function cloudErrorMessage(error) {
+  const text = String(error?.message || error || '');
+  if (text.includes('ROLE_TAKEN')) return '这个身份已经被对方使用，请返回选择另一个身份。';
+  if (text.includes('INVALID_OR_EXPIRED_INVITE')) return '邀请码无效或已经过期，请让对方重新打开邀请页。';
+  if (text.includes('HOUSEHOLD_FULL')) return '这个小窝已经有小戴和小杨两个人了。';
+  if (text.includes('anonymous sign-ins')) return '云端还没有开启匿名登录。';
+  return '连接没有成功，请检查网络后再试。';
+}
+
+async function createHousehold() {
+  if (!supabaseClient || !state.activeUser) return;
+  const button = document.querySelector('#create-household');
+  button.disabled = true; setSyncStatus('syncing', '连接中');
+  try {
+    await ensureAnonymousSession();
+    const { data, error } = await supabaseClient.rpc('create_household', { p_role: state.activeUser, p_state: sharedStateSnapshot() });
+    if (error) throw error;
+    const row = data[0];
+    household = { id: row.household_id, role: state.activeUser, memberCount: Number(row.member_count) };
+    remoteRevision = Number(row.ledger_revision);
+    const otherRole = state.activeUser === 'dai' ? 'yang' : 'dai';
+    const link = `${location.origin}${location.pathname}?invite=${row.invite_code}&role=${otherRole}`;
+    localStorage.setItem(INVITE_KEY, JSON.stringify({ code: row.invite_code, link }));
+    subscribeToHousehold(); setSyncStatus('synced', '已同步'); showInviteStep(row.invite_code, link);
+  } catch (error) {
+    setSyncStatus('offline', '未连接'); showToast(cloudErrorMessage(error));
+  } finally { button.disabled = false; }
+}
+
+function showInviteStep(code, link) {
+  showSyncStep('sync-invite');
+  document.querySelector('#created-invite-code').textContent = code;
+  document.querySelector('#copy-invite-link').dataset.link = link;
+}
+
+function showConnectedStep() {
+  showSyncStep('sync-connected');
+  const role = household?.role || state.activeUser;
+  document.querySelector('#connected-copy').textContent = `这台设备是${role === 'dai' ? '小戴' : '小杨'}，记账后会自动出现在对方手机里。`;
+}
+
+async function joinHousehold() {
+  if (!supabaseClient || !state.activeUser) return;
+  const code = document.querySelector('#invite-code').value.trim().toUpperCase();
+  const errorNode = document.querySelector('#join-error');
+  if (code.length !== 10) { errorNode.textContent = '请输入完整的 10 位邀请码。'; return; }
+  const button = document.querySelector('#join-household');
+  button.disabled = true; errorNode.textContent = ''; setSyncStatus('syncing', '连接中');
+  try {
+    await ensureAnonymousSession();
+    const { data, error } = await supabaseClient.rpc('join_household', { p_invite_code: code, p_role: state.activeUser });
+    if (error) throw error;
+    const row = data[0];
+    household = { id: row.household_id, role: row.member_role, memberCount: Number(row.member_count) };
+    remoteRevision = Number(row.ledger_revision);
+    localStorage.removeItem(INVITE_KEY);
+    history.replaceState({}, '', location.pathname);
+    const merged = mergeSharedStates(sharedStateSnapshot(), row.ledger_state);
+    applySharedState(merged, row.member_role);
+    subscribeToHousehold(); setSyncStatus('synced', '已同步'); showConnectedStep();
+    if (JSON.stringify(merged) !== JSON.stringify(normalizeState(row.ledger_state))) scheduleCloudSave();
+  } catch (error) {
+    setSyncStatus('offline', '未连接'); errorNode.textContent = cloudErrorMessage(error);
+  } finally { button.disabled = false; }
+}
+
+function scheduleCloudSave() {
+  clearTimeout(syncTimer);
+  setSyncStatus(navigator.onLine ? 'syncing' : 'offline', navigator.onLine ? '同步中' : '离线保存');
+  syncTimer = setTimeout(() => syncToCloud(), 450);
+}
+
+async function syncToCloud(retry = true) {
+  if (!household || !supabaseClient || !navigator.onLine) return setSyncStatus('offline', '离线保存');
+  const snapshot = sharedStateSnapshot();
+  const { data, error } = await supabaseClient.rpc('set_household_state', { p_household_id: household.id, p_state: snapshot, p_expected_revision: remoteRevision });
+  if (!error && data?.[0]) {
+    remoteRevision = Number(data[0].ledger_revision); setSyncStatus('synced', '已同步'); return;
+  }
+  if (retry && String(error?.message).includes('REVISION_CONFLICT')) {
+    const latest = await fetchMyHousehold();
+    if (latest) {
+      const merged = mergeSharedStates(snapshot, latest.ledger_state);
+      applySharedState(merged, household.role);
+      return syncToCloud(false);
+    }
+  }
+  setSyncStatus('offline', '稍后重试');
+}
+
+async function fetchMyHousehold() {
+  const { data, error } = await supabaseClient.rpc('get_my_household');
+  return error ? null : data?.[0] || null;
+}
+
+function subscribeToHousehold() {
+  if (syncChannel) supabaseClient.removeChannel(syncChannel);
+  syncChannel = supabaseClient.channel(`ledger-${household.id}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ledger_documents', filter: `household_id=eq.${household.id}` }, payload => {
+      const revision = Number(payload.new.revision);
+      if (revision <= remoteRevision) return;
+      remoteRevision = revision; applySharedState(payload.new.state, household.role); setSyncStatus('synced', '已同步');
+    })
+    .subscribe();
+}
+
+async function initCloud() {
+  if (!supabaseClient) return setSyncStatus('offline', '本机记录');
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      setSyncStatus('local', '本机记录');
+      if (state.activeUser && inviteFromUrl()) setTimeout(openSyncDialog, 150);
+      return;
+    }
+    const row = await fetchMyHousehold();
+    if (!row) return setSyncStatus('local', '本机记录');
+    household = { id: row.household_id, role: row.member_role, memberCount: Number(row.member_count) };
+    remoteRevision = Number(row.ledger_revision);
+    const merged = mergeSharedStates(sharedStateSnapshot(), row.ledger_state);
+    const needsPush = JSON.stringify(merged) !== JSON.stringify(normalizeState(row.ledger_state));
+    applySharedState(merged, row.member_role);
+    subscribeToHousehold(); setSyncStatus('synced', '已同步');
+    if (needsPush) scheduleCloudSave();
+  } catch { setSyncStatus('offline', '离线保存'); }
+}
+
+function setupSync() {
+  document.querySelector('#sync-status').addEventListener('click', openSyncDialog);
+  document.querySelector('#open-sync').addEventListener('click', openSyncDialog);
+  document.querySelector('#sync-close').addEventListener('click', closeSyncDialog);
+  document.querySelector('#sync-later').addEventListener('click', () => { localStorage.setItem(CLOUD_PROMPT_KEY, 'dismissed'); closeSyncDialog(); });
+  document.querySelector('#show-join').addEventListener('click', () => showSyncStep('sync-join'));
+  document.querySelector('#join-back').addEventListener('click', () => showSyncStep('sync-start'));
+  document.querySelector('#create-household').addEventListener('click', createHousehold);
+  document.querySelector('#join-household').addEventListener('click', joinHousehold);
+  document.querySelector('#invite-done').addEventListener('click', closeSyncDialog);
+  document.querySelector('#connected-done').addEventListener('click', closeSyncDialog);
+  document.querySelector('#copy-invite-link').addEventListener('click', async event => {
+    await navigator.clipboard.writeText(event.currentTarget.dataset.link);
+    showToast('给对象的专属链接已复制');
+  });
+  window.addEventListener('online', () => household ? syncToCloud() : initCloud());
+  window.addEventListener('offline', () => setSyncStatus('offline', '离线保存'));
+}
+
+setupCategories(); setupNavigation(); setupDialogs(); setupIdentity(); setupSync(); setupDateAndMode(); updateEntryUI(); renderIdentity(); renderAll(); initCloud(); if (window.lucide) window.lucide.createIcons();

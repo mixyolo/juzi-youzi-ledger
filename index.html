@@ -60,6 +60,7 @@
         <header class="topbar">
           <div><span class="eyebrow" id="date-label"></span><h1 id="page-title">今天也一起，好好生活</h1></div>
           <div class="top-actions">
+            <button class="sync-chip" type="button" id="sync-status" aria-label="查看同步状态"><i data-lucide="cloud"></i><span>未同步</span></button>
             <button class="top-identity" type="button" id="top-identity-switch" aria-label="切换身份"><span class="avatar" id="top-active-avatar">?</span><span id="top-identity-label">选择身份</span></button>
             <button class="icon-button" type="button" aria-label="搜索账单" title="搜索账单"><i data-lucide="search"></i></button>
             <button class="icon-button" type="button" aria-label="通知" title="通知"><i data-lucide="bell"></i><span class="dot"></span></button>
@@ -160,7 +161,7 @@
         <button class="mobile-nav-item" data-view="vault"><i data-lucide="target"></i><span>计划</span></button>
         <button class="mobile-add" id="mobile-add" type="button" aria-label="快速记一笔"><i data-lucide="plus"></i></button>
         <button class="mobile-nav-item" data-view="review"><i data-lucide="chart-no-axes-combined"></i><span>复盘</span></button>
-        <button class="mobile-nav-item" type="button"><i data-lucide="user-round"></i><span>我们</span></button>
+        <button class="mobile-nav-item" id="open-sync" type="button"><i data-lucide="users-round"></i><span>我们</span></button>
       </nav>
     </div>
 
@@ -184,8 +185,49 @@
     <dialog class="mini-dialog delete-dialog" id="delete-dialog"><div class="delete-dialog-body"><div class="delete-mark"><i data-lucide="trash-2"></i></div><h2>删除这笔记录？</h2><p id="delete-summary">删除后，预算和复盘数据会立即更新。</p><div class="delete-actions"><button class="delete-cancel" id="delete-cancel" type="button">先留着</button><button class="delete-confirm" id="delete-confirm" type="button">确认删除</button></div></div></dialog>
     <dialog class="mini-dialog delete-dialog" id="goal-delete-dialog"><div class="delete-dialog-body"><div class="delete-mark goal-delete-mark"><i data-lucide="sparkles"></i></div><h2>删除这个愿望？</h2><p id="goal-delete-summary">已经记录的存钱金额会保留，只是不再关联这个愿望。</p><div class="delete-actions"><button class="delete-cancel" id="goal-delete-cancel" type="button">先留着</button><button class="delete-confirm" id="goal-delete-confirm" type="button">删除愿望</button></div></div></dialog>
 
+    <dialog class="sync-dialog" id="sync-dialog">
+      <div class="sync-sheet">
+        <button class="sync-close" id="sync-close" type="button" aria-label="关闭"><i data-lucide="x"></i></button>
+        <div class="sync-stamp" aria-hidden="true"><span>橘</span><small>ふたり</small></div>
+        <span class="eyebrow">OUR PRIVATE HOME</span>
+        <section class="sync-step" id="sync-start">
+          <h2>把账本连成一个小窝</h2>
+          <p>这里不是银行卡，也不会发生转账。连接后，小戴和小杨可以在两台手机上更新同一本生活账。</p>
+          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>只有加入这个小窝的两台设备能读取账目。</span></div>
+          <button class="sync-primary" id="create-household" type="button"><i data-lucide="home"></i> 建立我们的账本</button>
+          <button class="sync-secondary" id="show-join" type="button"><i data-lucide="ticket-check"></i> 我有对象发来的邀请码</button>
+          <button class="sync-later" id="sync-later" type="button">先只在这台手机记录</button>
+        </section>
+        <section class="sync-step" id="sync-join" hidden>
+          <button class="sync-back" id="join-back" type="button"><i data-lucide="arrow-left"></i> 返回</button>
+          <h2>回到我们的小窝</h2>
+          <p>输入对方发来的 10 位邀请码。身份会和这台设备绑定，不能与对方重复。</p>
+          <label class="invite-input">邀请码<input id="invite-code" type="text" maxlength="10" inputmode="text" autocomplete="off" placeholder="例如 A1B2C3D4E5" /></label>
+          <p class="sync-error" id="join-error" role="alert"></p>
+          <button class="sync-primary" id="join-household" type="button"><i data-lucide="heart-handshake"></i> 加入共同账本</button>
+        </section>
+        <section class="sync-step" id="sync-invite" hidden>
+          <span class="tiny-celebration">✿ 连接已经准备好</span>
+          <h2>把邀请交给对方</h2>
+          <p>邀请码 7 天内有效，仅能再加入一人。对方打开链接后，先选择自己的身份，再加入共同账本。</p>
+          <div class="invite-code-card"><small>OUR HOME CODE</small><strong id="created-invite-code">----------</strong></div>
+          <button class="sync-primary" id="copy-invite-link" type="button"><i data-lucide="link"></i> 复制给对象的链接</button>
+          <button class="sync-later" id="invite-done" type="button">我已经记下了</button>
+        </section>
+        <section class="sync-step" id="sync-connected" hidden>
+          <div class="connected-mark"><i data-lucide="cloud-check"></i></div>
+          <h2>我们在同一本账里</h2>
+          <p id="connected-copy">这台设备的记录会自动同步。</p>
+          <div class="member-pair"><span class="member-dai">戴</span><i data-lucide="heart"></i><span class="member-yang">杨</span></div>
+          <button class="sync-primary" id="connected-done" type="button">继续记账</button>
+        </section>
+      </div>
+    </dialog>
+
     <div class="toast" id="toast" role="status"><span><i data-lucide="circle-check"></i><b id="toast-message">记账成功</b></span><button id="undo-button" type="button">撤销 <small id="undo-count">4</small></button></div>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="app.js"></script>
     <script>
       if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
