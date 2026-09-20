@@ -9,13 +9,13 @@
     <meta name="apple-mobile-web-app-title" content="橘子柚子" />
     <meta name="description" content="只属于小戴和小杨的共同生活账本" />
     <title>橘子柚子记账簿</title>
-    <link rel="manifest" href="manifest.webmanifest?v=6" />
+    <link rel="manifest" href="manifest.webmanifest?v=7" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <div class="identity-onboarding" id="identity-onboarding" role="dialog" aria-modal="true" aria-labelledby="identity-title">
@@ -227,12 +227,12 @@
     <div class="toast" id="toast" role="status"><span><i data-lucide="circle-check"></i><b id="toast-message">记账成功</b></span><button id="undo-button" type="button">撤销 <small id="undo-count">4</small></button></div>
     <script src="vendor/lucide.min.js?v=1"></script>
     <script src="vendor/supabase.min.js?v=1"></script>
-    <script src="supabase-config.js?v=6"></script>
-    <script src="app.js?v=6"></script>
+    <script src="supabase-config.js?v=7"></script>
+    <script src="app.js?v=7"></script>
     <script>
       if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
         window.addEventListener('load', async () => {
-          const registration = await navigator.serviceWorker.register('./service-worker.js?v=6', { updateViaCache: 'none' });
+          const registration = await navigator.serviceWorker.register('./service-worker.js?v=7', { updateViaCache: 'none' });
           registration.update();
         });
       }

@@ -445,7 +445,7 @@ async function joinHousehold() {
     }
     household = { id: row.household_id, memberCount: Number(row.member_count) };
     remoteRevision = Number(row.ledger_revision);
-    localStorage.removeItem(INVITE_KEY);
+    localStorage.setItem(INVITE_KEY, JSON.stringify({ code, link: `${location.origin}${location.pathname}?invite=${code}` }));
     history.replaceState({}, '', location.pathname);
     const merged = mergeSharedStates(sharedStateSnapshot(), row.ledger_state);
     applySharedState(merged);
