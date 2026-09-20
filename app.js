@@ -352,17 +352,13 @@ async function refreshCloudConnection(updateDialog = false) {
   }
   updateHouseholdSyncStatus();
   if (!updateDialog || !document.querySelector('#sync-dialog').open) return;
-  const savedInvite = JSON.parse(localStorage.getItem(INVITE_KEY) || 'null');
-  if (savedInvite?.code) showInviteStep(savedInvite.code);
-  else showConnectedStep();
+  showConnectedStep();
 }
 
 function openSyncDialog() {
   const dialog = document.querySelector('#sync-dialog');
   if (household) {
-    const savedInvite = JSON.parse(localStorage.getItem(INVITE_KEY) || 'null');
-    if (savedInvite?.code) showInviteStep(savedInvite.code);
-    else showConnectedStep();
+    showConnectedStep();
   } else showSyncStep('sync-join');
   if (!dialog.open) dialog.showModal();
   if (household) refreshCloudConnection(true);
