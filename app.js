@@ -317,7 +317,7 @@ function setSyncStatus(kind, label) {
   const chip = document.querySelector('#sync-status');
   chip.dataset.status = kind;
   chip.querySelector('span').textContent = label;
-  chip.innerHTML = `<i data-lucide="${kind === 'synced' ? 'cloud-check' : kind === 'syncing' ? 'cloud-upload' : kind === 'offline' ? 'cloud-off' : 'cloud'}"></i><span>${escapeHtml(label)}</span>`;
+  chip.innerHTML = `<i data-lucide="cloud"></i><span>${escapeHtml(label)}</span>`;
   if (window.lucide) window.lucide.createIcons();
 }
 
