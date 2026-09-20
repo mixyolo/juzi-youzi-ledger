@@ -150,8 +150,7 @@ function renderIdentity() {
 }
 function chooseIdentity(identity) {
   state.activeUser = identity; saveState(false); identityPickerCloseable = false; renderIdentity(); updateEntryUI();
-  if (!household && inviteFromUrl()) setTimeout(startInviteJoin, 120);
-  else if (!household && !localStorage.getItem(CLOUD_PROMPT_KEY)) setTimeout(openSyncDialog, 120);
+  if (!household && !localStorage.getItem(CLOUD_PROMPT_KEY)) setTimeout(openSyncDialog, 120);
 }
 function setupIdentity() {
   document.querySelectorAll('[data-identity]').forEach(button => button.addEventListener('click', () => chooseIdentity(button.dataset.identity)));
@@ -364,10 +363,7 @@ function openSyncDialog() {
     const savedInvite = JSON.parse(localStorage.getItem(INVITE_KEY) || 'null');
     if (savedInvite?.code) showInviteStep(savedInvite.code);
     else showConnectedStep();
-  } else if (inviteFromUrl()) {
-    showSyncStep('sync-join');
-    document.querySelector('#invite-code').value = inviteFromUrl();
-  } else showSyncStep('sync-start');
+  } else showSyncStep('sync-join');
   if (!dialog.open) dialog.showModal();
   if (household) refreshCloudConnection(true);
 }
@@ -385,8 +381,9 @@ async function ensureAnonymousSession() {
 function cloudErrorMessage(error) {
   const text = String(error?.message || error || '');
   if (text.includes('ALREADY_JOINED')) return '这台设备已经加入云端账本，正在恢复连接。';
+  if (text.includes('INVALID_PASSWORD')) return '共同密码不正确，请再试一次。';
   if (text.includes('INVALID_OR_EXPIRED_INVITE')) return '邀请码无效或已经过期，请让对方重新打开邀请页。';
-  if (text.includes('HOUSEHOLD_DEVICE_LIMIT')) return '这个小窝已经绑定了 6 台设备，请先停止使用旧设备。';
+  if (text.includes('HOUSEHOLD_DEVICE_LIMIT')) return '这个小窝已经绑定了 12 台设备，请先停止使用旧设备。';
   if (text.includes('anonymous sign-ins')) return '云端还没有开启匿名登录。';
   return '连接没有成功，请检查网络后再试。';
 }
@@ -429,15 +426,15 @@ function showConnectedStep() {
 
 async function joinHousehold() {
   if (!supabaseClient || !state.activeUser || joiningHousehold) return;
-  const code = document.querySelector('#invite-code').value.trim().toUpperCase();
+  const password = document.querySelector('#invite-code').value.trim();
   const errorNode = document.querySelector('#join-error');
-  if (code.length !== 10) { errorNode.textContent = '请输入完整的 10 位邀请码。'; return; }
+  if (!password) { errorNode.textContent = '请输入共同密码。'; return; }
   const button = document.querySelector('#join-household');
   joiningHousehold = true; button.disabled = true; errorNode.textContent = ''; setSyncStatus('syncing', '连接中');
   try {
     await ensureAnonymousSession();
-    const { data, error } = await supabaseClient.rpc('join_household', { p_invite_code: code, p_role: state.activeUser });
-    let row = data?.[0];
+    const { data, error } = await supabaseClient.rpc('join_household_by_password', { p_password: password, p_role: state.activeUser });
+    let row = Array.isArray(data) ? data[0] : data;
     if (error) {
       if (!String(error.message).includes('ALREADY_JOINED')) throw error;
       row = await fetchMyHousehold();
@@ -445,7 +442,7 @@ async function joinHousehold() {
     }
     household = { id: row.household_id, memberCount: Number(row.member_count) };
     remoteRevision = Number(row.ledger_revision);
-    localStorage.setItem(INVITE_KEY, JSON.stringify({ code, link: `${location.origin}${location.pathname}?invite=${code}` }));
+    localStorage.setItem(INVITE_KEY, JSON.stringify({ linked: true }));
     history.replaceState({}, '', location.pathname);
     const merged = mergeSharedStates(sharedStateSnapshot(), row.ledger_state);
     applySharedState(merged);
@@ -507,14 +504,14 @@ async function initCloud() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
       setSyncStatus('local', '本机记录');
-      if (state.activeUser && inviteFromUrl()) setTimeout(startInviteJoin, 150);
+      if (state.activeUser && !localStorage.getItem(CLOUD_PROMPT_KEY)) setTimeout(openSyncDialog, 150);
       return;
     }
     const row = await fetchMyHousehold();
     if (!row) {
       setSyncStatus('local', '本机记录');
       renderIdentity();
-      if (state.activeUser && inviteFromUrl()) setTimeout(startInviteJoin, 150);
+      if (state.activeUser && !localStorage.getItem(CLOUD_PROMPT_KEY)) setTimeout(openSyncDialog, 150);
       return;
     }
     household = { id: row.household_id, memberCount: Number(row.member_count) };
@@ -534,7 +531,6 @@ function setupSync() {
   document.querySelector('#sync-later').addEventListener('click', () => { localStorage.setItem(CLOUD_PROMPT_KEY, 'dismissed'); closeSyncDialog(); });
   document.querySelector('#show-join').addEventListener('click', () => showSyncStep('sync-join'));
   document.querySelector('#join-back').addEventListener('click', () => showSyncStep('sync-start'));
-  document.querySelector('#create-household').addEventListener('click', createHousehold);
   document.querySelector('#join-household').addEventListener('click', joinHousehold);
   document.querySelector('#invite-done').addEventListener('click', closeSyncDialog);
   document.querySelector('#connected-done').addEventListener('click', closeSyncDialog);

@@ -3,7 +3,7 @@
   "short_name": "橘子柚子",
   "description": "只属于小戴和小杨的共同生活账本",
   "lang": "zh-CN",
-  "start_url": "./?invite=C362DAE2EB&v=7",
+  "start_url": "./?v=8",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

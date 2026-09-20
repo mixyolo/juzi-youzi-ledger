@@ -3,9 +3,12 @@ create extension if not exists pgcrypto with schema extensions;
 create table if not exists public.households (
   id uuid primary key default gen_random_uuid(),
   invite_hash text not null unique,
+  access_hash text,
   invite_expires_at timestamptz not null default (now() + interval '7 days'),
   created_at timestamptz not null default now()
 );
+
+alter table public.households add column if not exists access_hash text;
 
 create table if not exists public.household_members (
   household_id uuid not null references public.households(id) on delete cascade,
@@ -121,7 +124,7 @@ begin
   for update;
 
   if v_household_id is null then raise exception 'INVALID_OR_EXPIRED_INVITE'; end if;
-  if (select count(*) from public.household_members hm where hm.household_id = v_household_id) >= 6 then raise exception 'HOUSEHOLD_DEVICE_LIMIT'; end if;
+  if (select count(*) from public.household_members hm where hm.household_id = v_household_id) >= 12 then raise exception 'HOUSEHOLD_DEVICE_LIMIT'; end if;
 
   insert into public.household_members (household_id, user_id, role)
   values (v_household_id, auth.uid(), p_role);
@@ -130,6 +133,40 @@ begin
     select d.household_id, p_role, d.state, d.revision,
       (select count(distinct m.role) from public.household_members m where m.household_id = v_household_id)
     from public.ledger_documents d where d.household_id = v_household_id;
+end;
+$$;
+
+create or replace function public.join_household_by_password(p_password text, p_role text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_household_id uuid;
+  v_state jsonb;
+  v_revision bigint;
+  v_member_count bigint;
+begin
+  if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
+  if p_role not in ('dai', 'yang') then raise exception 'INVALID_ROLE'; end if;
+  if exists (select 1 from public.household_members where user_id = auth.uid()) then raise exception 'ALREADY_JOINED'; end if;
+
+  select h.id, d.state, d.revision
+    into v_household_id, v_state, v_revision
+  from public.households h
+  join public.ledger_documents d on d.household_id = h.id
+  where h.access_hash = encode(digest(trim(p_password), 'sha256'), 'hex')
+  limit 1;
+
+  if v_household_id is null then raise exception 'INVALID_PASSWORD'; end if;
+  if (select count(*) from public.household_members hm where hm.household_id = v_household_id) >= 12 then raise exception 'HOUSEHOLD_DEVICE_LIMIT'; end if;
+
+  insert into public.household_members (household_id, user_id, role)
+  values (v_household_id, auth.uid(), p_role);
+
+  select count(*) into v_member_count from public.household_members hm where hm.household_id = v_household_id;
+  return jsonb_build_object('household_id', v_household_id, 'ledger_state', v_state, 'ledger_revision', v_revision, 'member_count', v_member_count);
 end;
 $$;
 
@@ -159,11 +196,13 @@ revoke all on function public.is_household_member(uuid) from public, anon;
 revoke all on function public.get_my_household() from public, anon;
 revoke all on function public.create_household(text, jsonb) from public, anon;
 revoke all on function public.join_household(text, text) from public, anon;
+revoke all on function public.join_household_by_password(text, text) from public, anon;
 revoke all on function public.set_household_state(uuid, jsonb, bigint) from public, anon;
 grant execute on function public.is_household_member(uuid) to authenticated;
 grant execute on function public.get_my_household() to authenticated;
 grant execute on function public.create_household(text, jsonb) to authenticated;
 grant execute on function public.join_household(text, text) to authenticated;
+grant execute on function public.join_household_by_password(text, text) to authenticated;
 grant execute on function public.set_household_state(uuid, jsonb, bigint) to authenticated;
 
 do $$

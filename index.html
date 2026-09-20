@@ -9,13 +9,13 @@
     <meta name="apple-mobile-web-app-title" content="橘子柚子" />
     <meta name="description" content="只属于小戴和小杨的共同生活账本" />
     <title>橘子柚子记账簿</title>
-    <link rel="manifest" href="manifest.webmanifest?v=7" />
+    <link rel="manifest" href="manifest.webmanifest?v=8" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=7" />
+    <link rel="stylesheet" href="styles.css?v=8" />
   </head>
   <body>
     <div class="identity-onboarding" id="identity-onboarding" role="dialog" aria-modal="true" aria-labelledby="identity-title">
@@ -192,19 +192,18 @@
         <span class="eyebrow">OUR PRIVATE HOME</span>
         <section class="sync-step" id="sync-start">
           <h2>把账本连成一个小窝</h2>
-          <p>这里不是银行卡，也不会发生转账。连接后，你们可以在手机和电脑上更新同一本生活账。</p>
-          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>只有拿到私密邀请并加入的设备能读取账目。</span></div>
-          <button class="sync-primary" id="create-household" type="button"><i data-lucide="home"></i> 建立我们的账本</button>
-          <button class="sync-secondary" id="show-join" type="button"><i data-lucide="ticket-check"></i> 我有对象发来的邀请码</button>
+          <p>这里不是银行卡，也不会发生转账。输入你们的共同密码，就能在手机和电脑上更新同一本生活账。</p>
+          <div class="privacy-note"><i data-lucide="lock-keyhole"></i><span>只有通过共同密码的设备能读取账目。</span></div>
+          <button class="sync-primary" id="show-join" type="button"><i data-lucide="lock-keyhole"></i> 输入共同密码</button>
           <button class="sync-later" id="sync-later" type="button">先只在这台手机记录</button>
         </section>
         <section class="sync-step" id="sync-join" hidden>
           <button class="sync-back" id="join-back" type="button"><i data-lucide="arrow-left"></i> 返回</button>
           <h2>回到我们的小窝</h2>
-          <p>输入另一台设备发来的 10 位邀请码。加入后可以随时切换小戴或小杨，身份只用于标记记录。</p>
-          <label class="invite-input">邀请码<input id="invite-code" type="text" maxlength="10" inputmode="text" autocomplete="off" placeholder="例如 A1B2C3D4E5" /></label>
+          <p>输入你们约定的共同密码。加入后可以随时切换小戴或小杨，身份只用于标记记录。</p>
+          <label class="invite-input">共同密码<input id="invite-code" type="password" maxlength="32" inputmode="numeric" autocomplete="off" placeholder="输入共同密码" /></label>
           <p class="sync-error" id="join-error" role="alert"></p>
-          <button class="sync-primary" id="join-household" type="button"><i data-lucide="heart-handshake"></i> 加入共同账本</button>
+          <button class="sync-primary" id="join-household" type="button"><i data-lucide="lock-keyhole"></i> 验证并进入账本</button>
         </section>
         <section class="sync-step" id="sync-invite" hidden>
           <span class="tiny-celebration">✿ 连接已经准备好</span>
@@ -227,12 +226,12 @@
     <div class="toast" id="toast" role="status"><span><i data-lucide="circle-check"></i><b id="toast-message">记账成功</b></span><button id="undo-button" type="button">撤销 <small id="undo-count">4</small></button></div>
     <script src="vendor/lucide.min.js?v=1"></script>
     <script src="vendor/supabase.min.js?v=1"></script>
-    <script src="supabase-config.js?v=7"></script>
-    <script src="app.js?v=7"></script>
+    <script src="supabase-config.js?v=8"></script>
+    <script src="app.js?v=8"></script>
     <script>
       if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
         window.addEventListener('load', async () => {
-          const registration = await navigator.serviceWorker.register('./service-worker.js?v=7', { updateViaCache: 'none' });
+          const registration = await navigator.serviceWorker.register('./service-worker.js?v=8', { updateViaCache: 'none' });
           registration.update();
         });
       }

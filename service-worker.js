@@ -1,5 +1,5 @@
-const CACHE_NAME = 'juzi-youzi-v7';
-const APP_SHELL = ['./', './index.html?v=7', './styles.css?v=7', './app.js?v=7', './supabase-config.js?v=7', './vendor/lucide.min.js?v=1', './vendor/supabase.min.js?v=1', './manifest.webmanifest?v=7', './icon.svg'];
+const CACHE_NAME = 'juzi-youzi-v8';
+const APP_SHELL = ['./', './index.html?v=8', './styles.css?v=8', './app.js?v=8', './supabase-config.js?v=8', './vendor/lucide.min.js?v=1', './vendor/supabase.min.js?v=1', './manifest.webmanifest?v=8', './icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
@@ -23,6 +23,6 @@ self.addEventListener('fetch', event => {
         return response;
       })
       .catch(() => caches.match(event.request, { ignoreSearch: true })
-        .then(response => response || (event.request.mode === 'navigate' ? caches.match('./index.html?v=7') : null)))
+        .then(response => response || (event.request.mode === 'navigate' ? caches.match('./index.html?v=8') : null)))
   );
 });
