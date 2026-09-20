@@ -121,7 +121,7 @@ begin
   for update;
 
   if v_household_id is null then raise exception 'INVALID_OR_EXPIRED_INVITE'; end if;
-  if (select count(*) from public.household_members where household_id = v_household_id) >= 6 then raise exception 'HOUSEHOLD_DEVICE_LIMIT'; end if;
+  if (select count(*) from public.household_members hm where hm.household_id = v_household_id) >= 6 then raise exception 'HOUSEHOLD_DEVICE_LIMIT'; end if;
 
   insert into public.household_members (household_id, user_id, role)
   values (v_household_id, auth.uid(), p_role);
