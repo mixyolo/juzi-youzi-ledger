@@ -1,5 +1,5 @@
-const CACHE_NAME = 'juzi-youzi-v5';
-const APP_SHELL = ['./', './index.html', './styles.css', './app.js', './supabase-config.js', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'juzi-youzi-v6';
+const APP_SHELL = ['./', './index.html?v=6', './styles.css?v=6', './app.js?v=6', './supabase-config.js?v=6', './vendor/lucide.min.js?v=1', './vendor/supabase.min.js?v=1', './manifest.webmanifest?v=6', './icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
@@ -15,14 +15,14 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
+  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(event.request, response.clone()));
         return response;
       })
-      .catch(() => caches.match(event.request).then(response => response || caches.match('./index.html')))
+      .catch(() => caches.match(event.request, { ignoreSearch: true })
+        .then(response => response || (event.request.mode === 'navigate' ? caches.match('./index.html?v=6') : null)))
   );
 });

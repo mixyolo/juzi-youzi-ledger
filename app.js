@@ -34,6 +34,7 @@ let remoteRevision = 0;
 let syncTimer = null;
 let syncChannel = null;
 let isApplyingRemote = false;
+let joiningHousehold = false;
 const cloudConfig = window.JUZI_YOUZI_SUPABASE;
 const supabaseClient = cloudConfig && window.supabase ? window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey) : null;
 
@@ -149,7 +150,8 @@ function renderIdentity() {
 }
 function chooseIdentity(identity) {
   state.activeUser = identity; saveState(false); identityPickerCloseable = false; renderIdentity(); updateEntryUI();
-  if (!household && (inviteFromUrl() || !localStorage.getItem(CLOUD_PROMPT_KEY))) setTimeout(openSyncDialog, 120);
+  if (!household && inviteFromUrl()) setTimeout(startInviteJoin, 120);
+  else if (!household && !localStorage.getItem(CLOUD_PROMPT_KEY)) setTimeout(openSyncDialog, 120);
 }
 function setupIdentity() {
   document.querySelectorAll('[data-identity]').forEach(button => button.addEventListener('click', () => chooseIdentity(button.dataset.identity)));
@@ -382,6 +384,7 @@ async function ensureAnonymousSession() {
 
 function cloudErrorMessage(error) {
   const text = String(error?.message || error || '');
+  if (text.includes('ALREADY_JOINED')) return '这台设备已经加入云端账本，正在恢复连接。';
   if (text.includes('INVALID_OR_EXPIRED_INVITE')) return '邀请码无效或已经过期，请让对方重新打开邀请页。';
   if (text.includes('HOUSEHOLD_DEVICE_LIMIT')) return '这个小窝已经绑定了 6 台设备，请先停止使用旧设备。';
   if (text.includes('anonymous sign-ins')) return '云端还没有开启匿名登录。';
@@ -425,17 +428,21 @@ function showConnectedStep() {
 }
 
 async function joinHousehold() {
-  if (!supabaseClient || !state.activeUser) return;
+  if (!supabaseClient || !state.activeUser || joiningHousehold) return;
   const code = document.querySelector('#invite-code').value.trim().toUpperCase();
   const errorNode = document.querySelector('#join-error');
   if (code.length !== 10) { errorNode.textContent = '请输入完整的 10 位邀请码。'; return; }
   const button = document.querySelector('#join-household');
-  button.disabled = true; errorNode.textContent = ''; setSyncStatus('syncing', '连接中');
+  joiningHousehold = true; button.disabled = true; errorNode.textContent = ''; setSyncStatus('syncing', '连接中');
   try {
     await ensureAnonymousSession();
     const { data, error } = await supabaseClient.rpc('join_household', { p_invite_code: code, p_role: state.activeUser });
-    if (error) throw error;
-    const row = data[0];
+    let row = data?.[0];
+    if (error) {
+      if (!String(error.message).includes('ALREADY_JOINED')) throw error;
+      row = await fetchMyHousehold();
+      if (!row) throw error;
+    }
     household = { id: row.household_id, memberCount: Number(row.member_count) };
     remoteRevision = Number(row.ledger_revision);
     localStorage.removeItem(INVITE_KEY);
@@ -446,7 +453,12 @@ async function joinHousehold() {
     if (JSON.stringify(merged) !== JSON.stringify(normalizeState(row.ledger_state))) scheduleCloudSave();
   } catch (error) {
     setSyncStatus('offline', '未连接'); errorNode.textContent = cloudErrorMessage(error);
-  } finally { button.disabled = false; }
+  } finally { joiningHousehold = false; button.disabled = false; }
+}
+
+function startInviteJoin() {
+  openSyncDialog();
+  joinHousehold();
 }
 
 function scheduleCloudSave() {
@@ -495,14 +507,14 @@ async function initCloud() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
       setSyncStatus('local', '本机记录');
-      if (state.activeUser && inviteFromUrl()) setTimeout(openSyncDialog, 150);
+      if (state.activeUser && inviteFromUrl()) setTimeout(startInviteJoin, 150);
       return;
     }
     const row = await fetchMyHousehold();
     if (!row) {
       setSyncStatus('local', '本机记录');
       renderIdentity();
-      if (state.activeUser && inviteFromUrl()) setTimeout(openSyncDialog, 150);
+      if (state.activeUser && inviteFromUrl()) setTimeout(startInviteJoin, 150);
       return;
     }
     household = { id: row.household_id, memberCount: Number(row.member_count) };
